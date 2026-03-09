@@ -53,6 +53,9 @@ api.interceptors.response.use(
         return api(originalRequest)
       } catch (refreshError) {
         processQueue(refreshError, null)
+        // clear stale token so Home.tsx doesn't redirect back to /control
+        localStorage.removeItem('accessToken')
+        delete api.defaults.headers.common['Authorization']
         return Promise.reject(refreshError)
       } finally {
         isRefreshing = false

@@ -23,9 +23,11 @@ builder.Services.AddControllers()
 
 // CORS - required for browser client to send cookies (credentials)
 // In production set CORS_ORIGINS env var (comma-separated), e.g. "https://fair-loot.vercel.app"
-var corsOriginsRaw = builder.Configuration["CORS_ORIGINS"];
-var corsOrigins = corsOriginsRaw?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-    ?? new[] { "http://localhost:5173", "https://localhost:5173" };
+var corsOriginsRaw = Environment.GetEnvironmentVariable("CORS_ORIGINS")
+    ?? builder.Configuration["CORS_ORIGINS"];
+var corsOrigins = !string.IsNullOrEmpty(corsOriginsRaw)
+    ? corsOriginsRaw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+    : new[] { "http://localhost:5173", "https://localhost:5173" };
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("DefaultCorsPolicy", policy =>
@@ -33,7 +35,8 @@ builder.Services.AddCors(options =>
         policy.WithOrigins(corsOrigins)
               .AllowAnyHeader()
               .AllowAnyMethod()
-              .AllowCredentials();
+              .AllowCredentials()
+              .SetPreflightMaxAge(TimeSpan.FromMinutes(10));
     });
 });
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -150,6 +153,6 @@ if (!app.Environment.IsDevelopment())
 app.UseCors("DefaultCorsPolicy");
 app.UseAuthentication();
 app.UseAuthorization();
-app.MapControllers();
+app.MapControllers().RequireCors("DefaultCorsPolicy");
 
 app.Run();

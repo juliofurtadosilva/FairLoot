@@ -20,6 +20,7 @@ const ProtectedRoute: React.FC = () => {
         if (r.data?.isApproved) setAuthorized(true)
         else setAuthorized(false)
       } catch {
+        localStorage.removeItem('accessToken')
         setAuthorized(false)
       } finally {
         setLoading(false)
