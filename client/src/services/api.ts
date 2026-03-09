@@ -69,10 +69,8 @@ api.interceptors.response.use(
 // attach access token if present
 api.interceptors.request.use(config => {
   const token = localStorage.getItem('accessToken')
-  if (token) {
-    // Axios headers type is a complex object; set Authorization safely
-    (config.headers as any) = config.headers || {}
-    ;(config.headers as any).Authorization = `Bearer ${token}`
+  if (token && config.headers) {
+    config.headers.Authorization = `Bearer ${token}`
   }
   return config
 })
