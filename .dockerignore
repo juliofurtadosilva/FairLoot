@@ -1,0 +1,14 @@
+bin/
+obj/
+.vs/
+*.user
+*.suo
+node_modules/
+client/
+package.json
+package-lock.json
+README.md
+.git/
+.gitignore
+.gitattributes
+FairLoot/appsettings.json

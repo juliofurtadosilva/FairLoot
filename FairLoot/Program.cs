@@ -22,8 +22,9 @@ builder.Services.AddControllers()
     });
 
 // CORS - required for browser client to send cookies (credentials)
-// In production set CORS_ORIGINS env var (comma-separated), e.g. "https://fairloot.vercel.app"
-var corsOrigins = builder.Configuration["CORS_ORIGINS"]?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+// In production set CORS_ORIGINS env var (comma-separated), e.g. "https://fair-loot.vercel.app"
+var corsOriginsRaw = builder.Configuration["CORS_ORIGINS"];
+var corsOrigins = corsOriginsRaw?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
     ?? new[] { "http://localhost:5173", "https://localhost:5173" };
 builder.Services.AddCors(options =>
 {
@@ -123,6 +124,10 @@ if (!string.IsNullOrEmpty(renderPort))
 }
 
 var app = builder.Build();
+
+// Log CORS origins for troubleshooting
+var logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Startup");
+logger.LogInformation("CORS origins configured: {Origins}", string.Join(", ", corsOrigins));
 
 // Forward headers so Request.IsHttps works behind Render reverse proxy
 app.UseForwardedHeaders(new ForwardedHeadersOptions
