@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import api from '../services/api'
 import { useApp } from '../context/AppContext'
+import Spinner from '../components/Spinner'
 
 type Encounter = {
   name: string
@@ -60,6 +61,7 @@ export default function Wishlist() {
   const [search, setSearch] = useState('')
   const [expandedChars, setExpandedChars] = useState<Set<string>>(new Set())
   const [selectedRaid, setSelectedRaid] = useState<string>('')
+  const [initialLoading, setInitialLoading] = useState(true)
   const { t } = useApp()
 
   const fetchData = async () => {
@@ -68,6 +70,8 @@ export default function Wishlist() {
       setList(r.data?.summary || [])
     } catch (err: any) {
       setError(err?.response?.data || t('wishlist.error'))
+    } finally {
+      setInitialLoading(false)
     }
   }
 
@@ -124,7 +128,9 @@ export default function Wishlist() {
 
         {error && <div style={{ color: '#f97316', textAlign: 'center' }}>{error}</div>}
 
-        {/* Filters */}
+        {initialLoading && <Spinner size={40} />}
+        {!initialLoading && (
+        <>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center', width: '100%' }}>
           <input
             type="text"
@@ -262,6 +268,8 @@ export default function Wishlist() {
             )
           })}
         </div>
+        </>
+        )}
       </div>
     </div>
   )

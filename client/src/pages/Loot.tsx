@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import api from '../services/api'
 import { useApp } from '../context/AppContext'
+import Spinner from '../components/Spinner'
 import voidspireImg from '../assets/voidspire.jpg'
 import dreamriftImg from '../assets/dreamrift.jpg'
 import marchImg from '../assets/marchonqueldanas.jpg'
@@ -27,6 +28,7 @@ export default function Loot() {
   const [bossList, setBossList] = useState<string[]>([])
   const [isAdmin, setIsAdmin] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [initialLoading, setInitialLoading] = useState(true)
 
   const computeBosses = (instName: string, diff: string) => {
     const bosses: string[] = []
@@ -129,6 +131,8 @@ export default function Loot() {
         }
       } catch (e) {
         console.error(e)
+      } finally {
+        setInitialLoading(false)
       }
     }
     init()
@@ -383,7 +387,8 @@ export default function Loot() {
   return (
     <div className="tab-content">
       <div className="card tab-card">
-        {step === 1 && (
+        {initialLoading && <Spinner size={40} />}
+        {!initialLoading && step === 1 && (
           <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', justifyContent: 'center', width: '100%' }}>
               {/* Difficulty buttons — vertical */}
@@ -540,7 +545,7 @@ export default function Loot() {
           </div>
         )}
 
-        {step === 2 && (
+        {!initialLoading && step === 2 && (
           <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 10 }}>
             {loading && suggestions && Object.keys(suggestions).length === 0 && (
               <div style={{ marginBottom: 8 }}>{t('loot.loading')}</div>

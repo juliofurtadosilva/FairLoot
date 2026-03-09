@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react'
 import api from '../services/api'
 import { useApp } from '../context/AppContext'
+import Spinner from '../components/Spinner'
 
 export default function LootHistory() {
   const [drops, setDrops] = useState<any[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [initialLoading, setInitialLoading] = useState(true)
   const { t } = useApp()
 
   const fetchHistory = async () => {
@@ -13,6 +15,8 @@ export default function LootHistory() {
       setDrops(r.data || [])
     } catch (err: any) {
       setError(err?.response?.data || t('history.errorFetch'))
+    } finally {
+      setInitialLoading(false)
     }
   }
 
@@ -32,7 +36,8 @@ export default function LootHistory() {
     <div>
       <h3>{t('history.title')}</h3>
       {error && <div style={{ color: '#ef4444' }}>{error}</div>}
-      {drops.length === 0 && <div>{t('history.noRecords')}</div>}
+      {initialLoading && <Spinner size={40} />}
+      {!initialLoading && drops.length === 0 && <div>{t('history.noRecords')}</div>}
       {drops.map(d => (
         <div key={d.id} className="card" style={{ marginBottom: 8 }}>
           <div><strong>{d.itemName}</strong> — {d.boss} ({d.difficulty})</div>
