@@ -1,0 +1,274 @@
+@use './variables' as v;
+
+// ─── Theme CSS variables ───
+:root, [data-theme="dark"] {
+  --bg: #08061a;
+  --bg-end: #0c0a1f;
+  --card: #0e0c22;
+  --text: #e8e2f0;
+  --muted: #a099b8;
+  --accent: #7c3aed;
+  --accent-rgb: 124,58,237;
+  --glass: rgba(124,58,237,0.08);
+  --surface: rgba(255,255,255,0.04);
+  --surface-end: rgba(255,255,255,0.01);
+  --border: rgba(201,162,78,0.10);
+  --input-bg: rgba(0,0,0,0.25);
+  --scroll-thumb: rgba(124,58,237,0.35);
+  --scroll-track: rgba(255,255,255,0.03);
+  --grad-a: rgba(124,58,237,0.12);
+  --grad-b: rgba(201,162,78,0.08);
+  --panel-bg: rgba(0,0,0,0.2);
+  --panel-text: #e8e2f0;
+  --select-bg: #100e24;
+  --color-transmog: #c4b5fd;
+  --color-cyan: #22d3ee;
+  --color-yellow: #facc15;
+  --color-green: #1eff00;
+  --color-heroic: #a335ee;
+  --color-mythic: #ff8000;
+  --color-gold: #c9a24e;
+}
+
+[data-theme="light"] {
+  --bg: #e8e0f0;
+  --bg-end: #d8d0e8;
+  --card: rgba(255,255,255,0.55);
+  --text: #1e1638;
+  --muted: #5c5278;
+  --accent: #7c3aed;
+  --accent-rgb: 124,58,237;
+  --glass: rgba(124,58,237,0.07);
+  --surface: rgba(255,255,255,0.50);
+  --surface-end: rgba(255,255,255,0.35);
+  --border: rgba(124,58,237,0.16);
+  --input-bg: rgba(255,255,255,0.65);
+  --scroll-thumb: rgba(124,58,237,0.30);
+  --scroll-track: rgba(124,58,237,0.06);
+  --grad-a: rgba(124,58,237,0.10);
+  --grad-b: rgba(34,211,238,0.08);
+  --panel-bg: rgba(124,58,237,0.06);
+  --panel-text: #1e1638;
+  --select-bg: #ede6f5;
+  --color-transmog: #7c3aed;
+  --color-cyan: #0891b2;
+  --color-yellow: #a16207;
+  --color-green: #15803d;
+  --color-heroic: #7e22ce;
+  --color-mythic: #c2410c;
+}
+
+html, body {
+  height: 100%;
+}
+
+body {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+  background: radial-gradient(1200px 600px at 10% 0%, var(--grad-a), transparent 60%),
+              radial-gradient(1000px 500px at 90% 10%, var(--grad-b), transparent 55%),
+              linear-gradient(180deg, var(--bg) 0%, var(--bg-end) 100%);
+  color: var(--text);
+  margin: 0;
+  background-attachment: fixed;
+  overflow: hidden;
+}
+
+.container {
+    margin: 0 3% 3vh;
+    width: 94%;
+    height: calc(100vh - 3vh);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    background: linear-gradient(180deg, var(--surface), var(--surface-end));
+    border-radius: v.$radius;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+    overflow: hidden;
+}
+
+.control-shell {
+  min-height: 100vh;
+  padding: 24px 0 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.container > main {
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+nav {
+  background: transparent;
+  padding: 12px 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.control-tabs {
+  width: min(92vw, 1200px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  overflow: visible;
+}
+
+.nav-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nav-group--left {
+  flex: 1;
+  justify-content: flex-end;
+}
+
+.nav-group--right {
+  flex: 1;
+  justify-content: flex-start;
+}
+
+.nav-logo {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 140px;
+    margin: 0 8px;
+    cursor: pointer;
+    position: relative;
+    z-index: 10;
+    transition: transform 0.2s;
+    cursor: pointer;
+    height: 10px;
+}
+
+    .nav-logo:hover {
+        filter: drop-shadow(0 2px 8px rgba(201,162,78,0.35));
+    }
+
+    .nav-logo img {
+        position: absolute;
+        height: 140px;
+        top: -4vh;
+        width: auto;
+        object-fit: contain;
+        pointer-events: none;
+        margin-top: -18px;
+        cursor: pointer;
+    }
+
+.control-tabs .tab {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.control-tabs .tab.active {
+  border-color: rgba(var(--accent-rgb),0.6);
+  background: rgba(var(--accent-rgb),0.18);
+  box-shadow: 0 0 0 1px rgba(var(--accent-rgb),0.25);
+}
+
+.control-tabs .tab.logout {
+  background: rgba(249,115,22,0.1);
+  border-color: rgba(249,115,22,0.3);
+}
+
+.tab-content {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 24px;
+}
+
+.tab-card {
+  width: min(96%, 1200px);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32px 28px;
+}
+
+.tab-card.wishlist-card {
+  width: min(96%, 1400px);
+}
+
+.tab-card.admin-card {
+  width: min(96%, 1300px);
+}
+
+header .brand {
+  font-weight: 700;
+  color: v.$accent;
+}
+
+button {
+  background: linear-gradient(180deg, var(--surface), var(--surface-end));
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+select {
+  cursor: pointer;
+  background: var(--select-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+
+input {
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--input-bg);
+  color: var(--text);
+}
+
+a { color: var(--text); text-decoration: none; cursor: pointer }
+
+@media (max-width: 900px) {
+  .tab-card { padding: 20px 14px; }
+  .tab-card.admin-card,
+  .tab-card.wishlist-card { width: min(98%, 100%); }
+}
+
+@media (max-width: 600px) {
+  .tab-card { padding: 14px 8px; width: 100% !important; }
+  .control-tabs { flex-wrap: wrap; gap: 4px; }
+  .nav-group { flex: none; flex-wrap: wrap; justify-content: center; }
+  .nav-group--left, .nav-group--right { justify-content: center; }
+  .nav-logo { margin: 0 6px; order: -1; width: 100%; justify-content: center; min-width: unset; }
+  .nav-logo img { height: 52px; margin-top: 0; }
+  .control-tabs .tab { padding: 6px 8px; font-size: 12px; }
+}
+
+/* Home page lateral images */
+.home-lateral {
+  transition: opacity 0.3s;
+}
+
+@media (max-width: 960px) {
+  .home-lateral {
+    display: none !important;
+  }
+}
+

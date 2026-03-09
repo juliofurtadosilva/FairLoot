@@ -1,0 +1,6 @@
+@FairLoot_HostAddress = http://localhost:5177
+
+GET {{FairLoot_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

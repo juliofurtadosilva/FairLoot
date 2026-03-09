@@ -1,0 +1,11 @@
+@use './variables' as v;
+
+form { display: block }
+
+label { color: var(--muted); font-size: 13px }
+
+.form-row { margin-bottom: 12px }
+
+.error { color: v.$danger; margin-top: 8px }
+
+

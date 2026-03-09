@@ -1,0 +1,32 @@
+# ─── .NET ───
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+
+# appsettings with secrets (keep template only)
+FairLoot/appsettings.json
+
+# ─── Node / Frontend ───
+node_modules/
+client/node_modules/
+client/dist/
+*.tsbuildinfo
+
+# ─── IDE ───
+.idea/
+*.swp
+*.swo
+*~
+
+# ─── OS ───
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ─── Misc ───
+*.crdownload
+*.log

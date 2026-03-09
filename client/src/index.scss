@@ -1,0 +1,125 @@
+@use './styles/variables' as *;
+@import './styles/_layout.scss';
+@import './styles/_sidebar.scss';
+@import './styles/_forms.scss';
+
+/* small utility */
+.text-muted { color: $muted }
+.flex { display:flex }
+.center { display:flex; align-items:center; justify-content:center }
+
+nav { position: sticky; top:0; z-index: 20; overflow: visible }
+
+/* custom scrollbar */
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+*::-webkit-scrollbar-track {
+  background: var(--scroll-track);
+  border-radius: 3px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--scroll-thumb);
+  border-radius: 3px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(var(--accent-rgb),0.55);
+}
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scroll-thumb) var(--scroll-track);
+}
+
+/* ─── Home card ─── */
+.home-card {
+  width: 380px;
+  min-height: 240px;
+  padding: 36px 32px;
+  padding-top: 200px;
+  border-radius: 0;
+  transition: width 0.35s ease, min-height 0.35s ease, padding 0.35s ease;
+  overflow: visible;
+}
+.home-card--home {
+  width: 380px;
+  min-height: 240px;
+  padding-top: 200px;
+}
+.home-card--register {
+  padding-top: 36px;
+  min-height: 420px;
+}
+
+/* Logo inside the card */
+.home-card__logo {
+  object-fit: contain;
+  pointer-events: none;
+  transition: width 0.4s ease, position 0s, top 0.35s ease, opacity 0.3s ease;
+  /* default: large absolute (home / login) */
+  width: 700px;
+  position: absolute;
+  top: -160px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+}
+.home-card--register .home-card__logo {
+    position: absolute;
+    width: 300px;
+    top: -24%;
+    margin-bottom: 4px;
+}
+
+/* lateral treasure images */
+.home-lateral {
+  display: block;
+}
+
+/* responsive */
+@media (max-width: 1100px) {
+  .home-lateral { display: none !important; }
+  .home-card {
+    border-radius: 12px;
+  }
+}
+
+@media (max-width: 720px) {
+  .container { margin: 8px; width: auto; padding: 12px; }
+  aside { display: none }
+
+  .home-card {
+    width: 90vw !important;
+    min-height: auto !important;
+    padding: 24px 20px !important;
+    border-radius: 12px;
+  }
+  .home-card--home {
+    padding-top: 160px !important;
+  }
+  .home-card--login {
+    padding-top: 160px !important;
+  }
+  .home-card--register {
+    padding-top: 24px !important;
+  }
+  .home-card__logo {
+    width: 500px;
+  }
+  .home-card--register .home-card__logo {
+    width: 140px;
+  }
+}
+
+@media (max-width: 480px) {
+  .home-card__logo {
+    width: 340px;
+    top: -110px;
+  }
+  .home-card--home, .home-card--login {
+    padding-top: 130px !important;
+  }
+  .home-card--register .home-card__logo {
+    width: 120px;
+  }
+}

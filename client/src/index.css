@@ -1,0 +1,5 @@
+body { font-family: Arial, Helvetica, sans-serif; margin: 20px; }
+input, button { padding: 8px; margin: 6px 0; }
+button { cursor: pointer; }
+.container { max-width: 600px; margin: 0 auto; }
+.pre { background: #f5f5f5; padding: 10px; }

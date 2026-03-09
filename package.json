@@ -1,0 +1,13 @@
+{
+  "name": "fairloot-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "npx concurrently \"dotnet watch --project FairLoot\" \"npm --prefix client run dev\"",
+    "dev:nw": "npx concurrently \"dotnet run --project FairLoot\" \"npm --prefix client run dev\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0",
+    "sass-embedded": "^1.97.3"
+  }
+}
