@@ -54,6 +54,8 @@ builder.Services.AddHostedService<WowAuditSyncService>();
 // JWT configuration
 var jwtSettings = builder.Configuration.GetSection("Jwt");
 var jwtKey = jwtSettings["Key"] ?? throw new InvalidOperationException("JWT signing key (Jwt:Key) is not configured.");
+var jwtIssuer = jwtSettings["Issuer"] ?? "FairLoot";
+var jwtAudience = jwtSettings["Audience"] ?? "FairLootUsers";
 var key = Encoding.UTF8.GetBytes(jwtKey);
 
 builder.Services.AddAuthentication(options =>
@@ -71,8 +73,8 @@ builder.Services.AddAuthentication(options =>
         ValidateAudience = true,
         ValidateIssuerSigningKey = true,
         ValidateLifetime = true,
-        ValidIssuer = jwtSettings["Issuer"],
-        ValidAudience = jwtSettings["Audience"],
+        ValidIssuer = jwtIssuer,
+        ValidAudience = jwtAudience,
         IssuerSigningKey = new SymmetricSecurityKey(key)
     };
     options.Events = new Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerEvents

@@ -18,7 +18,9 @@ namespace FairLoot.Services
         public string GenerateToken(User user)
         {
             var jwtSettings = _configuration.GetSection("Jwt");
-            var key = Encoding.UTF8.GetBytes(jwtSettings["Key"]);
+            var key = Encoding.UTF8.GetBytes(jwtSettings["Key"]!);
+            var issuer = jwtSettings["Issuer"] ?? "FairLoot";
+            var audience = jwtSettings["Audience"] ?? "FairLootUsers";
 
             var claims = new List<Claim>
             {
@@ -29,8 +31,8 @@ namespace FairLoot.Services
             };
 
             var token = new JwtSecurityToken(
-                issuer: jwtSettings["Issuer"],
-                audience: jwtSettings["Audience"],
+                issuer: issuer,
+                audience: audience,
                 claims: claims,
                 expires: DateTime.UtcNow.AddHours(6),
                 signingCredentials: new SigningCredentials(
