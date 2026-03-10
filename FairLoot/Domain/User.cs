@@ -5,10 +5,14 @@ namespace FairLoot.Domain
     public class User
     {
         public Guid Id { get; set; }
-        public required string Email { get; set; }
+        public string? Email { get; set; }
 
         [JsonIgnore]
         public string PasswordHash { get; set; } = string.Empty;
+
+        // Battle.net unique account identifier
+        public string? BattleNetId { get; set; }
+        public string? BattleTag { get; set; }
 
         public Guid GuildId { get; set; }
 
@@ -24,7 +28,7 @@ namespace FairLoot.Domain
 
         [JsonIgnore]
         public List<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
-        
+
         // Optional mapping from account to character name in the guild. Useful to tie a User to a Character record.
         public string? CharacterName { get; set; }
     }

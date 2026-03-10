@@ -73,7 +73,10 @@ export default function Members() {
         <div style={{ width: '100%' }}>
           <h4 style={{ margin: '0 0 10px', fontSize: 15 }}>{t('members.active')}</h4>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 10 }}>
-            {members.map(m => (
+            {members.map(m => {
+              const displayName = m.characterName || m.battleTag || m.email || '?'
+              const initial = displayName[0]?.toUpperCase() || '?'
+              return (
               <div key={m.id} className="card" style={{
                 padding: '12px 16px',
                 display: 'flex',
@@ -86,9 +89,12 @@ export default function Members() {
                   border: `2px solid ${roleColor(m.role)}`,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: 14, fontWeight: 700, color: roleColor(m.role), flexShrink: 0,
-                }}>{m.email?.[0]?.toUpperCase() || '?'}</div>
+                }}>{initial}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.email}</div>
+                  <div style={{ fontWeight: 600, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</div>
+                  {m.battleTag && m.characterName && (
+                    <div style={{ fontSize: 11, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.battleTag}</div>
+                  )}
                   <div style={{ fontSize: 11, color: roleColor(m.role), fontWeight: 600 }}>{m.role}</div>
                 </div>
                 {isAdmin && m.role !== 'Admin' && (
@@ -109,7 +115,8 @@ export default function Members() {
                   >✕</button>
                 )}
               </div>
-            ))}
+              )
+            })}
           </div>
         </div>
 
@@ -119,7 +126,10 @@ export default function Members() {
             <h4 style={{ margin: '0 0 10px', fontSize: 15 }}>{t('members.pending')}</h4>
             {pending.length === 0 && <div style={{ color: 'var(--muted)', fontSize: 13 }}>{t('members.noPending')}</div>}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 10 }}>
-              {pending.map(p => (
+              {pending.map(p => {
+                const displayName = p.characterName || p.battleTag || p.email || '?'
+                const initial = displayName[0]?.toUpperCase() || '?'
+                return (
                 <div key={p.id} className="card" style={{
                   padding: '12px 16px',
                   display: 'flex',
@@ -133,9 +143,12 @@ export default function Members() {
                     border: '2px solid rgba(250,204,21,0.4)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontSize: 14, fontWeight: 700, color: '#facc15', flexShrink: 0,
-                  }}>{p.email?.[0]?.toUpperCase() || '?'}</div>
+                  }}>{initial}</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.email}</div>
+                    <div style={{ fontWeight: 600, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</div>
+                    {p.battleTag && p.characterName && (
+                      <div style={{ fontSize: 11, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.battleTag}</div>
+                    )}
                     <div style={{ fontSize: 11, color: '#facc15', fontWeight: 600 }}>{t('members.pending')}</div>
                   </div>
                   <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
@@ -168,7 +181,8 @@ export default function Members() {
                     >✕</button>
                   </div>
                 </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         )}

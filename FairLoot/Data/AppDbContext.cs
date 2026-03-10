@@ -30,7 +30,12 @@ namespace FairLoot.Data
 
             modelBuilder.Entity<User>()
                 .HasIndex(u => u.Email)
-                .IsUnique();
+                .IsUnique()
+                .HasFilter("\"Email\" IS NOT NULL");
+
+            modelBuilder.Entity<User>()
+                .HasIndex(u => u.BattleNetId)
+                .HasFilter("\"BattleNetId\" IS NOT NULL");
 
             modelBuilder.Entity<User>()
                 .HasOne(u => u.Guild)

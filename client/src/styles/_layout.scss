@@ -196,16 +196,16 @@ nav {
 }
 
 .tab-card {
-  width: min(96%, 1200px);
-  margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 32px 28px;
+    width: stretch;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 28px;
 }
 
 .tab-card.wishlist-card {
-  width: min(96%, 1400px);
+  width: stretch;
 }
 
 .tab-card.admin-card {

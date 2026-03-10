@@ -27,8 +27,11 @@ namespace FairLoot.Services
                 new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
                 new Claim("guildId", user.GuildId.ToString()),
                 new Claim(ClaimTypes.Role, user.Role),
-                new Claim(JwtRegisteredClaimNames.Email, user.Email)
             };
+            if (!string.IsNullOrEmpty(user.Email))
+                claims.Add(new Claim(JwtRegisteredClaimNames.Email, user.Email));
+            if (!string.IsNullOrEmpty(user.BattleTag))
+                claims.Add(new Claim("battletag", user.BattleTag));
 
             var token = new JwtSecurityToken(
                 issuer: issuer,

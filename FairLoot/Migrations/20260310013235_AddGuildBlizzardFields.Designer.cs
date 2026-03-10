@@ -3,6 +3,7 @@ using System;
 using FairLoot.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace FairLoot.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260310013235_AddGuildBlizzardFields")]
+    partial class AddGuildBlizzardFields
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -177,12 +180,6 @@ namespace FairLoot.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<string>("BattleNetId")
-                        .HasColumnType("text");
-
-                    b.Property<string>("BattleTag")
-                        .HasColumnType("text");
-
                     b.Property<string>("CharacterName")
                         .HasColumnType("text");
 
@@ -190,6 +187,7 @@ namespace FairLoot.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Email")
+                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<Guid>("GuildId")
@@ -208,12 +206,8 @@ namespace FairLoot.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("BattleNetId")
-                        .HasFilter("\"BattleNetId\" IS NOT NULL");
-
                     b.HasIndex("Email")
-                        .IsUnique()
-                        .HasFilter("\"Email\" IS NOT NULL");
+                        .IsUnique();
 
                     b.HasIndex("GuildId");
 

@@ -389,7 +389,7 @@ export default function Loot() {
       <div className="card tab-card">
         {initialLoading && <Spinner size={40} />}
         {!initialLoading && step === 1 && (
-          <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24 }}>
+          <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', justifyContent: 'center', width: '100%' }}>
               {/* Difficulty buttons — vertical */}
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
@@ -535,7 +535,7 @@ export default function Loot() {
               </div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
+            <div style={{ padding: '12px 0 4px', display: 'flex', justifyContent: 'center', width: '100%' }}>
               <button
                 onClick={() => goSuggest()}
                 disabled={selectedItems.length === 0 || !boss || !difficulty || loading}
@@ -546,28 +546,29 @@ export default function Loot() {
         )}
 
         {!initialLoading && step === 2 && (
-          <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 12 }}>
             {loading && suggestions && Object.keys(suggestions).length === 0 && (
-              <div style={{ marginBottom: 8 }}>{t('loot.loading')}</div>
+              <Spinner size={36} />
             )}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 8 }}>
+            <div style={{ maxHeight: 'calc(100vh - 280px)', overflowY: 'auto', padding: '2px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 10 }}>
               {allocItems.map((it, idx) => {
                 const allCandidates = suggestions[idx] || []
                 const topCandidates = allCandidates.slice(0, 3)
                 const upgradeCandidates = allCandidates.filter(c => c.itemPercentage > 0)
                 const { isTransmog } = getTransmogStatus(idx)
                 return (
-                  <div key={idx} className="card" style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '6px 0 4px', borderBottom: '1px solid rgba(var(--accent-rgb),0.12)' }}>
-                      {it.icon ? <img src={it.icon} alt="" style={{ width: 32, height: 32, borderRadius: 4, flexShrink: 0 }} draggable={false} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} /> : <div style={{ width: 32, height: 32, background: 'var(--panel-bg)', borderRadius: 4, flexShrink: 0 }} />}
-                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.itemName}</div>
+                  <div key={idx} className="card" style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', borderBottom: '1px solid rgba(var(--accent-rgb),0.12)' }}>
+                      {it.icon ? <img src={it.icon} alt="" style={{ width: 28, height: 28, borderRadius: 4, flexShrink: 0 }} draggable={false} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} /> : <div style={{ width: 28, height: 28, background: 'var(--panel-bg)', borderRadius: 4, flexShrink: 0 }} />}
+                      <div style={{ fontSize: 12, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{it.itemName}</div>
                     </div>
                     {isTransmog && (
                       <div style={{ color: 'var(--color-transmog)', fontWeight: 700, fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', textAlign: 'center', padding: '4px 0' }}>TRANSMOG</div>
                     )}
                     {!isTransmog && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: 6 }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 5, flex: 1 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                           {topCandidates.map((c: any, k: number) => {
                             const isSelected = assignments[idx] === c.characterName
                             const classLabel = c.class ? ` (${c.class})` : ''
@@ -577,19 +578,20 @@ export default function Loot() {
                                 onClick={() => setAssignments({ ...assignments, [idx]: c.characterName })}
                                 title={`Upgrade: ${Number(c.itemPercentage).toFixed(1)}% | Score: ${Number(c.overallScore).toFixed(1)} | Itens recebidos (30d): ${c.lootReceivedCount} | Priority: ${Number(c.priority).toFixed(3)}`}
                                 style={{
-                                  padding: '5px 8px',
+                                  padding: '6px 10px',
                                   borderRadius: 6,
                                   fontSize: 11,
                                   border: isSelected ? '2px solid var(--color-yellow)' : '1px solid var(--border)',
                                   background: isSelected ? 'rgba(var(--accent-rgb),0.10)' : 'transparent',
-                                  textAlign: 'center',
+                                  textAlign: 'left',
                                   transition: 'border-color 0.2s, background 0.2s',
+                                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                                 }}
                               >
-                                <div style={{ fontWeight: 600 }}>{c.characterName}{classLabel}</div>
-                                <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>
+                                <span style={{ fontWeight: 600 }}>{c.characterName}{classLabel}</span>
+                                <span style={{ fontSize: 9, color: 'var(--muted)', marginLeft: 6, flexShrink: 0 }}>
                                   ⬆{Number(c.itemPercentage).toFixed(1)}% · P:{Number(c.priority * 100).toFixed(0)}
-                                </div>
+                                </span>
                               </button>
                             )
                           })}
@@ -615,8 +617,9 @@ export default function Loot() {
                 )
               })}
             </div>
+            </div>
 
-            <div style={{ marginTop: 8, display: 'flex', justifyContent: 'center', gap: 12 }}>
+            <div style={{ padding: '12px 0 4px', display: 'flex', justifyContent: 'center', gap: 12 }}>
               <button onClick={() => setStep(1)}>{t('loot.back')}</button>
               <button onClick={doDistribute} style={{ padding: '10px 32px', fontSize: 15, borderRadius: 8, border: '1px solid rgba(var(--accent-rgb),0.4)', background: 'rgba(var(--accent-rgb),0.12)' }}>{t('loot.distribute')}</button>
             </div>

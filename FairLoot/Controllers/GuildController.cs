@@ -30,7 +30,7 @@ namespace FairLoot.Controllers
 
             var pending = await _context.Users
                 .Where(u => u.GuildId == admin!.GuildId && !u.IsApproved)
-                .Select(u => new { u.Id, u.Email, u.CreatedAt })
+                .Select(u => new { u.Id, u.Email, u.BattleTag, u.CharacterName, u.CreatedAt })
                 .ToListAsync();
 
             return Ok(pending);

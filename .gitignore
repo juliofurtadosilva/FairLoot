@@ -9,6 +9,7 @@ obj/
 
 # appsettings with secrets (keep template only)
 FairLoot/appsettings.json
+FairLoot/appsettings.Development.json
 
 # ─── Node / Frontend ───
 node_modules/

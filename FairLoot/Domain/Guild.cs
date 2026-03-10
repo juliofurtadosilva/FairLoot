@@ -5,6 +5,10 @@
         public Guid Id { get; set; }
         public required string Name { get; set; }
         public required string Server { get; set; }
+        // Blizzard realm slug (e.g. "azralon", "area-52")
+        public string? RealmSlug { get; set; }
+        // Blizzard region (us, eu, kr, tw)
+        public string? Region { get; set; }
         // optional API key for external wowaudit access (per-guild)
         public string? WowauditApiKey { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

@@ -50,6 +50,17 @@ nav { position: sticky; top:0; z-index: 20; overflow: visible }
   padding-top: 36px;
   min-height: 420px;
 }
+.home-card--bnet-register {
+  width: 520px;
+  padding-top: 24px;
+  min-height: 80vh;
+}
+.home-card--bnet-login-select {
+  padding-top: 200px;
+}
+.home-card--pending {
+  padding-top: 200px;
+}
 
 /* Logo inside the card */
 .home-card__logo {
@@ -69,6 +80,14 @@ nav { position: sticky; top:0; z-index: 20; overflow: visible }
     width: 300px;
     top: -24%;
     margin-bottom: 4px;
+}
+.home-card--bnet-register .home-card__logo {
+    display: none;
+}
+
+/* bnet-register floating logo — hide on small screens and when laterals are hidden */
+@media (max-width: 1100px) {
+  .bnet-register-logo { display: none !important; }
 }
 
 /* lateral treasure images */
@@ -102,6 +121,12 @@ nav { position: sticky; top:0; z-index: 20; overflow: visible }
   }
   .home-card--register {
     padding-top: 24px !important;
+  }
+  .home-card--bnet-register {
+    padding-top: 24px !important;
+  }
+  .home-card--pending {
+    padding-top: 160px !important;
   }
   .home-card__logo {
     width: 500px;

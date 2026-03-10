@@ -31,8 +31,11 @@ namespace FairLoot.Controllers
                 {
                     Id = u.Id,
                     Email = u.Email,
+                    BattleTag = u.BattleTag,
+                    CharacterName = u.CharacterName,
                     Role = u.Role,
-                    CreatedAt = u.CreatedAt
+                    CreatedAt = u.CreatedAt,
+                    IsApproved = u.IsApproved
                 })
                 .ToListAsync();
 
@@ -110,8 +113,11 @@ namespace FairLoot.Controllers
             {
                 Id = member.Id,
                 Email = member.Email,
+                BattleTag = member.BattleTag,
+                CharacterName = member.CharacterName,
                 Role = member.Role,
-                CreatedAt = member.CreatedAt
+                CreatedAt = member.CreatedAt,
+                IsApproved = member.IsApproved
             });
         }
 
