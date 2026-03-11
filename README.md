@@ -339,8 +339,8 @@ dotnet ef database update
 | `Jwt:Key` | ✅ | Chave secreta para assinar JWTs (mín. 32 chars) |
 | `Jwt:Issuer` | ✅ | Issuer do JWT (ex: `FairLoot`) |
 | `Jwt:Audience` | ✅ | Audience do JWT (ex: `FairLootUsers`) |
-| `Blizzard:ClientId` | ❌ | Client ID da Blizzard API (para ícones) |
-| `Blizzard:ClientSecret` | ❌ | Client Secret da Blizzard API |
+| `Blizzard:ClientId` | ✅ | Client ID da Blizzard API (para ícones) |
+| `Blizzard:ClientSecret` | ✅ | Client Secret da Blizzard API |
 
 ### WowAudit API Key
 
