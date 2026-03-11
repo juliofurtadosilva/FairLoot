@@ -439,7 +439,7 @@ https://localhost:5001/swagger
 |----------------|:-----:|:------:|
 | Controle de Loot (suggest/distribute) | ✅ | ❌ |
 | Histórico de Loot | ✅ | ✅ |
-| Desfazer distribuição | ✅ | ✅ |
+| Desfazer distribuição | ✅ | ❌ |
 | Ver membros | ✅ | ✅ |
 | Aprovar/remover membros | ✅ | ❌ |
 | Wishlist (WowAudit) | ✅ | ✅ |
