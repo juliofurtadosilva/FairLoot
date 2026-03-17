@@ -21,5 +21,9 @@
         public double PriorityBeta { get; set; } = 0.3;
         // weight for recent loot count fairness component (0..1).
         public double PriorityGamma { get; set; } = 0.3;
+        // minimum item level required per difficulty
+        public int MinIlevelNormal { get; set; } = 0;
+        public int MinIlevelHeroic { get; set; } = 0;
+        public int MinIlevelMythic { get; set; } = 0;
     }
 }

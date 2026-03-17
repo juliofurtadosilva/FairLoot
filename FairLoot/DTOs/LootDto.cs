@@ -38,6 +38,7 @@ namespace FairLoot.DTOs
         /// Higher = should receive the item first.
         /// </summary>
         public double Priority { get; set; }
+        public bool IsNewPlayer { get; set; }
     }
 
     public class DistributeRequest
@@ -52,5 +53,7 @@ namespace FairLoot.DTOs
         public string AssignedTo { get; set; } = string.Empty; // character name
         public string Boss { get; set; } = string.Empty;
         public string Difficulty { get; set; } = string.Empty;
+        public string? Note { get; set; }
+        public bool IsSingleUpgrade { get; set; }
     }
 }

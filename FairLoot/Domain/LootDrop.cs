@@ -13,5 +13,8 @@ namespace FairLoot.Domain
         public string AssignedTo { get; set; } = string.Empty; // character name
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public double AwardValue { get; set; } = 0; // value added to character score
+        public string? Note { get; set; }
+        public bool IsReverted { get; set; } = false;
+        public DateTime? RevertedAt { get; set; }
     }
 }

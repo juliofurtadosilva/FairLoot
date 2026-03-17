@@ -11,6 +11,8 @@ namespace FairLoot.Domain
         // overall score used for prioritization (from wowaudit overallPercentage)
         public double Score { get; set; }
         public bool IsActive { get; set; } = true;
+        // flag for new player penalty
+        public bool IsNewPlayer { get; set; } = false;
 
         public Guid GuildId { get; set; }
         public Guild? Guild { get; set; }

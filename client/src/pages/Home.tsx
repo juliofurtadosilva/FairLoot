@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import { login, register, bnetRegister, bnetLogin, bnetLoginSelect } from '../services/auth'
+import { enterDemoMode, isDemoMode } from '../services/demoData'
 import api from '../services/api'
 import goldOneImg from '../assets/gold_one.png'
 import goldTwoImg from '../assets/gold_two.png'
@@ -272,6 +273,15 @@ export default function Home() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%', marginTop: 8 }}>
               <button onClick={() => setView('login')} style={primaryBtn}>{t('home.login')}</button>
               <button onClick={() => setView('register')} style={secondaryBtn}>{t('home.register')}</button>
+              <button onClick={() => { enterDemoMode(); navigate('/control') }} style={{
+                ...secondaryBtn,
+                borderColor: 'rgba(250,204,21,0.35)',
+                color: '#facc15',
+                fontSize: 13,
+              }}>
+                🔍 {t('home.demo')}
+              </button>
+              <div style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center' }}>{t('home.demoDesc')}</div>
             </div>
           </>
         )}

@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import api from '../services/api'
 import { useApp } from '../context/AppContext'
+import { isDemoMode, getDemoGuild, saveDemoGuild, getDemoCharacters, toggleDemoNewPlayer } from '../services/demoData'
 
 const classColors: Record<string, string> = {
   'death knight': '#C41E3A',
@@ -34,6 +35,13 @@ export default function AdminPanel() {
 
   const fetchData = async () => {
     try {
+      if (isDemoMode()) {
+        const g = getDemoGuild()
+        setGuild(g)
+        setForm(g)
+        setChars(getDemoCharacters())
+        return
+      }
       const r = await api.get('/api/guild')
       setGuild(r.data)
       setForm(r.data)
@@ -49,6 +57,12 @@ export default function AdminPanel() {
   const save = async () => {
     try {
       setLoading(true)
+      if (isDemoMode()) {
+        saveDemoGuild(form)
+        setGuild(form)
+        alert(t('admin.saved'))
+        return
+      }
       await api.put('/api/guild', form)
       await fetchData()
       alert(t('admin.saved'))
@@ -61,6 +75,7 @@ export default function AdminPanel() {
   }
 
   const sync = async () => {
+    if (isDemoMode()) return
     try {
       setLoading(true)
       await api.post('/api/guild/sync-characters')
@@ -114,6 +129,32 @@ export default function AdminPanel() {
                   <input type="number" step="0.05" min={0} max={1} value={form.priorityGamma ?? 0.3}
                     onChange={e => setForm({ ...form, priorityGamma: Number(e.target.value) })}
                     style={{ width: 60, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--input-bg)', color: 'var(--text)', fontSize: 13, textAlign: 'center' }}
+                  />
+                </div>
+              </div>
+
+              {/* Min iLevel per difficulty */}
+              <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                <div style={{ fontSize: 12, color: 'var(--muted)', minWidth: 120, alignSelf: 'center' }}>{t('admin.minIlevel')}:</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <label style={{ fontSize: 12, color: 'var(--color-green)' }}>N:</label>
+                  <input type="number" min={0} value={form.minIlevelNormal ?? 0}
+                    onChange={e => setForm({ ...form, minIlevelNormal: Number(e.target.value) })}
+                    style={{ width: 70, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--input-bg)', color: 'var(--text)', fontSize: 13, textAlign: 'center' }}
+                  />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <label style={{ fontSize: 12, color: 'var(--color-heroic)' }}>H:</label>
+                  <input type="number" min={0} value={form.minIlevelHeroic ?? 0}
+                    onChange={e => setForm({ ...form, minIlevelHeroic: Number(e.target.value) })}
+                    style={{ width: 70, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--input-bg)', color: 'var(--text)', fontSize: 13, textAlign: 'center' }}
+                  />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <label style={{ fontSize: 12, color: 'var(--color-mythic)' }}>M:</label>
+                  <input type="number" min={0} value={form.minIlevelMythic ?? 0}
+                    onChange={e => setForm({ ...form, minIlevelMythic: Number(e.target.value) })}
+                    style={{ width: 70, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--input-bg)', color: 'var(--text)', fontSize: 13, textAlign: 'center' }}
                   />
                 </div>
               </div>
@@ -177,15 +218,38 @@ export default function AdminPanel() {
                   <div key={i} style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                     padding: '8px 12px', borderRadius: 6,
-                    background: 'var(--panel-bg)', border: '1px solid var(--border)',
+                    background: 'var(--panel-bg)', border: c.isNewPlayer ? '1px solid rgba(250,204,21,0.4)' : '1px solid var(--border)',
                   }}>
                     <div style={{ minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 600, color: getClassColor(c.class), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</div>
                       <div style={{ fontSize: 10, color: 'var(--muted)' }}>{c.class || '—'}</div>
                     </div>
-                    <div style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0, marginLeft: 8, textAlign: 'right' }}>
-                      <div style={{ fontWeight: 600 }}>{Number(c.score).toFixed(0)}</div>
-                      <div style={{ fontSize: 9, color: 'var(--muted)' }}>{t('admin.score')}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, marginLeft: 8 }}>
+                      <div style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'right' }}>
+                        <div style={{ fontWeight: 600 }}>{Number(c.score).toFixed(0)}</div>
+                        <div style={{ fontSize: 9, color: 'var(--muted)' }}>{t('admin.score')}</div>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          if (isDemoMode()) {
+                            toggleDemoNewPlayer(c.name)
+                            setChars(getDemoCharacters())
+                          } else {
+                            try {
+                              await api.post(`/api/guild/characters/${c.id}/toggle-new`)
+                              await fetchData()
+                            } catch {}
+                          }
+                        }}
+                        title={t('admin.newPlayer')}
+                        style={{
+                          padding: '2px 6px', borderRadius: 4, fontSize: 9, fontWeight: 700,
+                          border: c.isNewPlayer ? '1px solid rgba(250,204,21,0.5)' : '1px solid var(--border)',
+                          background: c.isNewPlayer ? 'rgba(250,204,21,0.15)' : 'transparent',
+                          color: c.isNewPlayer ? '#facc15' : 'var(--muted)',
+                          cursor: 'pointer', lineHeight: 1.4,
+                        }}
+                      >{t('admin.newPlayer')}</button>
                     </div>
                   </div>
                 ))}

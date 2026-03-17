@@ -38,11 +38,13 @@ namespace FairLoot.Controllers
         [HttpPost("undo/{id:guid}")]
         public async Task<IActionResult> Undo(Guid id)
         {
-            var (user, error) = await GetAuthenticatedUserWithGuildAsync(_context);
+            var (user, error) = await GetAuthenticatedAdminAsync(_context);
             if (error != null) return error;
 
-            var drop = await _context.LootDrops.FirstOrDefaultAsync(d => d.Id == id && d.GuildId == user!.GuildId);
+            var drop = await _context.LootDrops.FirstOrDefaultAsync(d => d.Id == id && d.GuildId == user!.GuildId && !d.IsReverted);
             if (drop == null) return NotFound();
+
+            double revertedScore = 0;
 
             // revert award from character
             if (!string.IsNullOrEmpty(drop.AssignedTo))
@@ -50,13 +52,25 @@ namespace FairLoot.Controllers
                 var ch = await _context.Characters.FirstOrDefaultAsync(c => c.GuildId == user!.GuildId && c.Name == drop.AssignedTo);
                 if (ch != null)
                 {
+                    revertedScore = drop.AwardValue;
                     ch.Score = Math.Max(0, ch.Score - drop.AwardValue);
                 }
             }
 
-            _context.LootDrops.Remove(drop);
+            drop.IsReverted = true;
+            drop.RevertedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
-            return NoContent();
+
+            return Ok(new
+            {
+                drop.Id,
+                drop.ItemName,
+                drop.ItemId,
+                drop.Boss,
+                drop.Difficulty,
+                drop.AssignedTo,
+                revertedScore
+            });
         }
 
         // POST api/loot/suggest
@@ -81,7 +95,7 @@ namespace FairLoot.Controllers
             // load recent loot history (last 30 days) for loot count fairness
             var recentCutoff = DateTime.UtcNow.AddDays(-30);
             var recentLoot = await _context.LootDrops
-                .Where(d => d.GuildId == user!.GuildId && d.CreatedAt >= recentCutoff && d.AssignedTo != "")
+                .Where(d => d.GuildId == user!.GuildId && d.CreatedAt >= recentCutoff && d.AssignedTo != "" && !d.IsReverted)
                 .ToListAsync();
             var lootCountByChar = recentLoot
                 .GroupBy(d => d.AssignedTo)
@@ -126,6 +140,7 @@ namespace FairLoot.Controllers
                     var overall = dbChars.TryGetValue(ch.Name, out var charDb) ? charDb.Score : 0;
                     var lootCount = lootCountByChar.TryGetValue(ch.Name, out var lc) ? lc : 0;
                     var lastLoot = lastLootByChar.TryGetValue(ch.Name, out var ll) ? (DateTime?)ll : null;
+                    var isNew = dbChars.TryGetValue(ch.Name, out var charNew) && charNew.IsNewPlayer;
 
                     resp.Candidates.Add(new SuggestionCandidate
                     {
@@ -134,7 +149,8 @@ namespace FairLoot.Controllers
                         ItemPercentage = bestItemPerc,
                         OverallScore = overall,
                         LootReceivedCount = lootCount,
-                        LastLootDate = lastLoot
+                        LastLootDate = lastLoot,
+                        IsNewPlayer = isNew
                     });
                 }
 
@@ -169,6 +185,9 @@ namespace FairLoot.Controllers
                         : 1.0;
 
                     c.Priority = alpha * upgradeNorm + beta * fairnessNorm + gamma * lootCountNorm;
+
+                    // new player penalty: reduce priority by 50%
+                    if (c.IsNewPlayer) c.Priority *= 0.5;
                 }
 
                 var positiveCount = resp.Candidates.Count(c => c.ItemPercentage > 0);
@@ -201,8 +220,9 @@ namespace FairLoot.Controllers
             {
                 // consistent award: 1.0 per item received (score = total items received)
                 // transmog items (empty AssignedTo) get award 0
+                // single upgrade items (only 1 candidate wanted) get award 0 (no competition)
                 var isTransmog = string.IsNullOrEmpty(alloc.AssignedTo);
-                double award = isTransmog ? 0 : 1.0;
+                double award = (isTransmog || alloc.IsSingleUpgrade) ? 0 : 1.0;
 
                 var drop = new Domain.LootDrop
                 {
@@ -213,7 +233,8 @@ namespace FairLoot.Controllers
                     ItemName = alloc.ItemName,
                     AssignedTo = alloc.AssignedTo,
                     CreatedAt = DateTime.UtcNow,
-                    AwardValue = award
+                    AwardValue = award,
+                    Note = alloc.Note
                 };
 
                 drops.Add(drop);
@@ -233,6 +254,19 @@ namespace FairLoot.Controllers
             await _context.SaveChangesAsync();
 
             return Ok(new { distributed = drops.Count });
+        }
+
+        // POST api/loot/icons — resolve item icon URLs (no auth required)
+        [HttpPost("icons")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ResolveIcons([FromBody] List<int> itemIds)
+        {
+            var result = new Dictionary<int, string?>();
+            foreach (var id in itemIds.Distinct().Take(100))
+            {
+                result[id] = await _wow.GetWowheadIconAsync(id);
+            }
+            return Ok(result);
         }
     }
 }

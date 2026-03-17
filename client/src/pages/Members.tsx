@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import api from '../services/api'
 import { useApp } from '../context/AppContext'
+import { isDemoMode, getDemoCharacters } from '../services/demoData'
 
 export default function Members() {
   const [members, setMembers] = useState<any[]>([])
@@ -29,6 +30,19 @@ export default function Members() {
 
   useEffect(() => {
     const init = async () => {
+      if (isDemoMode()) {
+        setIsAdmin(true)
+        const chars = getDemoCharacters()
+        setMembers(chars.map((c: any, i: number) => ({
+          id: c.blizzard_id || `demo-${i}`,
+          characterName: c.name,
+          battleTag: '',
+          email: '',
+          role: i === 0 ? 'Admin' : 'Reader',
+        })))
+        setPending([])
+        return
+      }
       try {
         const me = await api.get('/api/auth/me')
         setIsAdmin(me.data?.role === 'Admin')
@@ -40,6 +54,7 @@ export default function Members() {
   }, [])
 
   const approve = async (id: string) => {
+    if (isDemoMode()) return
     try {
       await api.post(`/api/guild/members/${id}/approve`)
       await Promise.all([fetchPending(), fetchMembers()])
@@ -49,6 +64,7 @@ export default function Members() {
   }
 
   const removeMember = async (id: string) => {
+    if (isDemoMode()) return
     if (!confirm(t('members.confirmRemove'))) return
     try {
       await api.delete(`/api/guildmember/${id}`)

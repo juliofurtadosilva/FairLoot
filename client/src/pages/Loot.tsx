@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import api from '../services/api'
 import { useApp } from '../context/AppContext'
 import Spinner from '../components/Spinner'
+import { isDemoMode, getDemoWishlistSummary, getDemoCharacters, getDemoGuild, getDemoLootHistory, addDemoLootHistory } from '../services/demoData'
 import voidspireImg from '../assets/voidspire.jpg'
 import dreamriftImg from '../assets/dreamrift.jpg'
 import marchImg from '../assets/marchonqueldanas.jpg'
@@ -29,6 +30,8 @@ export default function Loot() {
   const [isAdmin, setIsAdmin] = useState(false)
   const [loading, setLoading] = useState(false)
   const [initialLoading, setInitialLoading] = useState(true)
+  const [itemNotes, setItemNotes] = useState<Record<number, string>>({})
+  const [noteOpenIdx, setNoteOpenIdx] = useState<number | null>(null)
 
   const computeBosses = (instName: string, diff: string) => {
     const bosses: string[] = []
@@ -100,8 +103,63 @@ export default function Loot() {
       return raidMapLocal
     }
 
+    const resolveIconsForSummary = async (data: any[]) => {
+      const ids = new Set<number>()
+      for (const ch of data) {
+        if (!ch.instances) continue
+        for (const inst of ch.instances) {
+          if (!inst.difficulties) continue
+          for (const d of inst.difficulties) {
+            if (!d.encounters) continue
+            for (const enc of d.encounters) {
+              if (!enc.items) continue
+              for (const it of enc.items) {
+                if (it.id && !it.icon) ids.add(it.id)
+              }
+            }
+          }
+        }
+      }
+      if (ids.size === 0) return data
+      try {
+        const res = await api.post('/api/loot/icons', [...ids])
+        const iconMap = res.data as Record<number, string | null>
+        return data.map((ch: any) => ({
+          ...ch,
+          instances: (ch.instances || []).map((inst: any) => ({
+            ...inst,
+            difficulties: (inst.difficulties || []).map((d: any) => ({
+              ...d,
+              encounters: (d.encounters || []).map((enc: any) => ({
+                ...enc,
+                items: (enc.items || []).map((it: any) => ({
+                  ...it,
+                  icon: it.icon || (it.id ? iconMap[it.id] ?? null : null),
+                })),
+              })),
+            })),
+          })),
+        }))
+      } catch { return data }
+    }
+
     const init = async () => {
       try {
+        if (isDemoMode()) {
+          setIsAdmin(true)
+          const s = getDemoWishlistSummary()
+          setSummary(s)
+          setRaidMapState(buildRaidMapFromSummary(s))
+          setChars(getDemoCharacters())
+          setInitialLoading(false)
+          // resolve icons asynchronously
+          resolveIconsForSummary(s).then(updated => {
+            setSummary(updated)
+            setRaidMapState(buildRaidMapFromSummary(updated))
+          }).catch(() => {})
+          return
+        }
+
         const me = await api.get('/api/auth/me')
         const isAdminLocal = me.data?.role === 'Admin'
         setIsAdmin(isAdminLocal)
@@ -282,6 +340,80 @@ export default function Loot() {
     }
   }
 
+  const demoSuggest = (payloadUnits: { itemId?: number | null; itemName: string; icon?: string }[]) => {
+    const guild = getDemoGuild()
+    const alpha = guild.priorityAlpha ?? 0.4
+    const beta = guild.priorityBeta ?? 0.3
+    const gamma = guild.priorityGamma ?? 0.3
+    const demoHistory = getDemoLootHistory()
+    const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000
+    const recentDrops = demoHistory.filter((d: any) => d.assignedTo && new Date(d.createdAt).getTime() >= cutoff)
+    const lootCountByChar: Record<string, number> = {}
+    const lastLootByChar: Record<string, number> = {}
+    for (const d of recentDrops) {
+      lootCountByChar[d.assignedTo] = (lootCountByChar[d.assignedTo] || 0) + 1
+      const ts = new Date(d.createdAt).getTime()
+      if (!lastLootByChar[d.assignedTo] || ts > lastLootByChar[d.assignedTo]) lastLootByChar[d.assignedTo] = ts
+    }
+
+    const data = payloadUnits.map(unit => {
+      const candidates: Candidate[] = []
+      for (const ch of summary) {
+        let bestPerc = 0
+        if (ch.instances) {
+          for (const inst of ch.instances) {
+            if (!inst.difficulties) continue
+            for (const d of inst.difficulties) {
+              if (!d.encounters) continue
+              for (const e of d.encounters) {
+                if (!e.items) continue
+                for (const it of e.items) {
+                  const match = (unit.itemId != null && it.id != null && unit.itemId === it.id) ||
+                    (unit.itemName && it.name && unit.itemName.toLowerCase() === it.name.toLowerCase())
+                  if (match && (it.percentage ?? 0) > bestPerc) bestPerc = it.percentage ?? 0
+                }
+              }
+            }
+          }
+        }
+        candidates.push({
+          characterName: ch.name,
+          class: ch.class,
+          itemPercentage: bestPerc,
+          overallScore: 0,
+          lootReceivedCount: lootCountByChar[ch.name] || 0,
+          lastLootDate: lastLootByChar[ch.name] ? new Date(lastLootByChar[ch.name]).toISOString() : undefined,
+          priority: 0,
+        })
+      }
+
+      const maxItem = Math.max(...candidates.map(c => c.itemPercentage), 0)
+      const scores = candidates.map(c => c.overallScore)
+      const minScore = Math.min(...scores, 0)
+      const maxScore = Math.max(...scores, 0)
+      const scoreRange = maxScore - minScore
+      const lootCounts = candidates.map(c => c.lootReceivedCount)
+      const maxLC = Math.max(...lootCounts, 0)
+      const minLC = Math.min(...lootCounts, 0)
+      const lcRange = maxLC - minLC
+
+      for (const c of candidates) {
+        const upgradeNorm = maxItem > 0 ? c.itemPercentage / maxItem : 0
+        const fairnessNorm = scoreRange > 0 ? (maxScore - c.overallScore) / scoreRange : 1.0
+        const lootCountNorm = lcRange > 0 ? (maxLC - c.lootReceivedCount) / lcRange : 1.0
+        c.priority = alpha * upgradeNorm + beta * fairnessNorm + gamma * lootCountNorm
+      }
+
+      const sorted = candidates
+        .sort((a, b) => b.priority - a.priority || b.itemPercentage - a.itemPercentage || a.overallScore - b.overallScore || (new Date(a.lastLootDate || 0).getTime()) - (new Date(b.lastLootDate || 0).getTime()))
+        .slice(0, 5)
+
+      const positiveCount = sorted.filter(c => c.itemPercentage > 0).length
+      return { candidates: sorted, allZeroUpgrade: positiveCount === 0, singleUpgradeOnly: positiveCount === 1 }
+    })
+    return data
+  }
+
   const goSuggest = async (itemsParam?: (Item & { count: number })[]) => {
     const itemsToUse = itemsParam ?? selectedItems
     if (!itemsToUse || itemsToUse.length === 0) return
@@ -297,9 +429,14 @@ export default function Loot() {
     setLoading(true)
     setStep(2)
     try {
-      const payload = { items: payloadUnits.map(u => ({ itemId: u.itemId, itemName: u.itemName, count: 1 })) }
-      const r = await api.post('/api/loot/suggest', payload)
-      const data = r.data as any[]
+      let data: any[]
+      if (isDemoMode()) {
+        data = demoSuggest(payloadUnits)
+      } else {
+        const payload = { items: payloadUnits.map(u => ({ itemId: u.itemId, itemName: u.itemName, count: 1 })) }
+        const r = await api.post('/api/loot/suggest', payload)
+        data = r.data as any[]
+      }
       const map: Record<number, Candidate[]> = {}
       const meta: Record<number, SuggestionMeta> = {}
       data.forEach((entry: any, idx: number) => {
@@ -367,16 +504,35 @@ export default function Loot() {
       itemName: it.itemName,
       assignedTo: getTransmogStatus(idx).isTransmog ? '' : (assignments[idx] || ''),
       boss,
-      difficulty
+      difficulty,
+      note: itemNotes[idx] || undefined,
+      isSingleUpgrade: !!suggestionMeta[idx]?.singleUpgradeOnly,
     }))
     try {
-      const r = await api.post('/api/loot/distribute', { allocations })
-      alert(`${r.data.distributed} ${t('loot.distributed')}`)
+      if (isDemoMode()) {
+        const drops = allocations.map((a, i) => ({
+          id: `demo-${Date.now()}-${i}`,
+          itemName: a.itemName,
+          assignedTo: a.assignedTo,
+          boss: a.boss,
+          difficulty: a.difficulty,
+          awardValue: a.assignedTo ? 1 : 0,
+          note: a.note || '',
+          createdAt: new Date().toISOString(),
+        }))
+        addDemoLootHistory(drops)
+        alert(`${drops.length} ${t('loot.distributed')}`)
+      } else {
+        const r = await api.post('/api/loot/distribute', { allocations })
+        alert(`${r.data.distributed} ${t('loot.distributed')}`)
+      }
       // reset
       setSelectedItems([])
       setSuggestions({})
       setSuggestionMeta({})
       setAssignments({})
+      setItemNotes({})
+      setNoteOpenIdx(null)
       setStep(1)
     } catch (e) {
       console.error(e)
@@ -613,6 +769,35 @@ export default function Loot() {
                         )}
                       </div>
                     )}
+                    {/* Per-item note icon */}
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', position: 'relative' }}>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setNoteOpenIdx(noteOpenIdx === idx ? null : idx) }}
+                        title={t('loot.note')}
+                        style={{
+                          background: itemNotes[idx] ? 'rgba(var(--accent-rgb),0.15)' : 'transparent',
+                          border: 'none', cursor: 'pointer', fontSize: 14, padding: '2px 6px', borderRadius: 4,
+                          color: itemNotes[idx] ? 'var(--accent)' : 'var(--muted)',
+                        }}
+                      >ℹ️</button>
+                      {noteOpenIdx === idx && (
+                        <div style={{
+                          position: 'absolute', bottom: 24, right: 0, zIndex: 10,
+                          background: 'var(--card)', border: '1px solid var(--accent)', borderRadius: 8,
+                          padding: 8, minWidth: 200, boxShadow: '0 4px 16px rgba(0,0,0,0.45)',
+                        }}>
+                          <textarea
+                            value={itemNotes[idx] || ''}
+                            onChange={e => setItemNotes({ ...itemNotes, [idx]: e.target.value })}
+                            placeholder={t('loot.notePlaceholder')}
+                            rows={2}
+                            autoFocus
+                            onClick={e => e.stopPropagation()}
+                            style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--select-bg)', color: 'var(--text)', fontSize: 12, resize: 'vertical', boxSizing: 'border-box' }}
+                          />
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )
               })}

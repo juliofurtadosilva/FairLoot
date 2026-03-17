@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react'
 import { Navigate, Outlet } from 'react-router-dom'
 import api from '../services/api'
+import { isDemoMode } from '../services/demoData'
+import miniLogoImg from '../assets/mini_logo.png'
 
 const ProtectedRoute: React.FC = () => {
   const [loading, setLoading] = useState(true)
@@ -8,6 +10,12 @@ const ProtectedRoute: React.FC = () => {
 
   useEffect(() => {
     const check = async () => {
+      if (isDemoMode()) {
+        setAuthorized(true)
+        setLoading(false)
+        return
+      }
+
       const token = localStorage.getItem('accessToken')
       if (!token) {
         setAuthorized(false)
@@ -29,7 +37,14 @@ const ProtectedRoute: React.FC = () => {
     check()
   }, [])
 
-  if (loading) return <div>Loading...</div>
+  if (loading) return (
+    <div className="loading-screen">
+      <div className="loading-screen__content">
+        <img src={miniLogoImg} alt="FairLoot" className="loading-screen__logo" draggable={false} />
+        <div className="spinner" style={{ width: 40, height: 40 }} />
+      </div>
+    </div>
+  )
   if (!authorized) return <Navigate to="/login" replace />
   return <Outlet />
 }

@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react'
 import api from '../services/api'
 import { useApp } from '../context/AppContext'
 import Spinner from '../components/Spinner'
+import { isDemoMode, getDemoWishlistSummary } from '../services/demoData'
 
 type Encounter = {
   name: string
@@ -64,10 +65,54 @@ export default function Wishlist() {
   const [initialLoading, setInitialLoading] = useState(true)
   const { t } = useApp()
 
+  const resolveIconsForSummary = async (data: CharSummary[]) => {
+    const ids = new Set<number>()
+    for (const ch of data) {
+      if (!ch.instances) continue
+      for (const inst of ch.instances) {
+        for (const d of inst.difficulties) {
+          for (const enc of d.encounters) {
+            for (const it of enc.items) {
+              if (it.id && !it.icon) ids.add(it.id)
+            }
+          }
+        }
+      }
+    }
+    if (ids.size === 0) return data
+    try {
+      const res = await api.post('/api/loot/icons', [...ids])
+      const iconMap = res.data as Record<number, string | null>
+      return data.map(ch => ({
+        ...ch,
+        instances: ch.instances?.map(inst => ({
+          ...inst,
+          difficulties: inst.difficulties.map(d => ({
+            ...d,
+            encounters: d.encounters.map(enc => ({
+              ...enc,
+              items: enc.items.map(it => ({
+                ...it,
+                icon: it.icon || (it.id ? iconMap[it.id] ?? undefined : undefined),
+              })),
+            })),
+          })),
+        })),
+      }))
+    } catch { return data }
+  }
+
   const fetchData = async () => {
     try {
-      const r = await api.get('/api/guild/wowaudit/wishlists')
-      setList(r.data?.summary || [])
+      if (isDemoMode()) {
+        let data = getDemoWishlistSummary()
+        setList(data)
+        // resolve icons asynchronously
+        resolveIconsForSummary(data).then(updated => setList(updated)).catch(() => {})
+      } else {
+        const r = await api.get('/api/guild/wowaudit/wishlists')
+        setList(r.data?.summary || [])
+      }
     } catch (err: any) {
       setError(err?.response?.data || t('wishlist.error'))
     } finally {

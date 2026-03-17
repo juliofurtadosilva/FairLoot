@@ -3,20 +3,31 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { logout } from '../services/auth'
 import { useApp } from '../context/AppContext'
 import api from '../services/api'
+import { isDemoMode, exitDemoMode } from '../services/demoData'
 import miniLogoImg from '../assets/mini_logo.png'
 
 export default function Control() {
   const navigate = useNavigate()
   const { t, theme, toggleTheme, lang, setLang } = useApp()
   const [role, setRole] = useState<string | null>(null)
+  const demo = isDemoMode()
 
   useEffect(() => {
+    if (demo) {
+      setRole('Admin')
+      return
+    }
     api.get('/api/auth/me').then(r => setRole(r.data?.role || null)).catch(() => {})
   }, [])
 
   const isAdmin = role === 'Admin'
 
   const handleLogout = async () => {
+    if (demo) {
+      exitDemoMode()
+      navigate('/')
+      return
+    }
     try {
       await logout()
     } catch {
@@ -52,6 +63,11 @@ export default function Control() {
       </nav>
 
       <div className="container">
+        {demo && (
+          <div className="demo-banner">
+            🔍 {lang === 'pt' ? 'Modo observação — alterações não são salvas' : 'Observation mode — changes are not saved'}
+          </div>
+        )}
         <main>
           <Outlet />
         </main>

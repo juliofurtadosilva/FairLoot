@@ -20,6 +20,8 @@ const translations = {
   'home.subtitle': { pt: 'Gerencie loot, membros e regras da sua guild.', en: 'Manage loot, members and guild rules.' },
   'home.login': { pt: 'Entrar', en: 'Login' },
   'home.register': { pt: 'Registrar', en: 'Register' },
+  'home.demo': { pt: 'Teste aqui', en: 'Try it here' },
+  'home.demoDesc': { pt: 'Versão de observação — nada é salvo.', en: 'Observation mode — nothing is saved.' },
 
   // dashboard
   'dash.welcome': { pt: 'Bem-vindo ao FairLoot!', en: 'Welcome to FairLoot!' },
@@ -51,6 +53,9 @@ const translations = {
   'dash.step2Desc': { pt: 'Durante a raid, o Admin seleciona a dificuldade, boss e os itens que droparam. O sistema calcula a prioridade de cada jogador com base no upgrade (α), score acumulado (β) e loot recente (γ).', en: 'During the raid, the Admin selects the difficulty, boss, and dropped items. The system calculates each player\'s priority based on upgrade (α), accumulated score (β), and recent loot (γ).' },
   'dash.step3Title': { pt: 'Distribuição Justa', en: 'Fair Distribution' },
   'dash.step3Desc': { pt: 'O sistema sugere automaticamente quem deve receber cada item. O Admin pode ajustar e confirmar. Itens sem upgrade viram transmog. Todo o histórico fica registrado.', en: 'The system automatically suggests who should receive each item. The Admin can adjust and confirm. Items with no upgrade become transmog. All history is recorded.' },
+  'dash.outdatedTitle': { pt: '⚠️ SimC Desatualizado', en: '⚠️ Outdated SimC' },
+  'dash.outdatedDesc': { pt: 'Os seguintes jogadores têm itens com wishlist desatualizada e precisam atualizar seu SimC:', en: 'The following players have items with outdated wishlist and need to update their SimC:' },
+  'dash.outdatedItems': { pt: 'itens desatualizados', en: 'outdated items' },
 
   // login
   'login.title': { pt: 'Login', en: 'Login' },
@@ -107,18 +112,29 @@ const translations = {
   'loot.allChars': { pt: 'Todos os personagens', en: 'All characters' },
   'loot.distributed': { pt: 'itens distribuídos', en: 'items distributed' },
   'loot.distributeError': { pt: 'Erro ao distribuir', en: 'Error distributing' },
+  'loot.note': { pt: 'Observação', en: 'Note' },
+  'loot.notePlaceholder': { pt: 'Ex: trade com fulano, item off-spec...', en: 'E.g.: trade with someone, off-spec item...' },
 
   // history
   'history.title': { pt: 'Histórico de Loot', en: 'Loot History' },
   'history.noRecords': { pt: 'Nenhum registro.', en: 'No records.' },
   'history.to': { pt: 'Para:', en: 'To:' },
   'history.value': { pt: 'Valor:', en: 'Value:' },
-  'history.transmog': { pt: 'esse item é transmog', en: 'this item is transmog' },
+  'history.transmog': { pt: 'Transmog', en: 'Transmog' },
   'history.at': { pt: 'Em:', en: 'At:' },
+  'history.note': { pt: 'Obs:', en: 'Note:' },
   'history.undo': { pt: 'Reverter', en: 'Undo' },
   'history.undoConfirm': { pt: 'Reverter essa distribuição?', en: 'Undo this distribution?' },
   'history.errorFetch': { pt: 'Erro ao buscar histórico', en: 'Error fetching history' },
   'history.errorUndo': { pt: 'Erro ao reverter', en: 'Error undoing' },
+  'history.filterPlayer': { pt: '🔍 Filtrar por jogador...', en: '🔍 Filter by player...' },
+  'history.filterBoss': { pt: 'Todos os bosses', en: 'All bosses' },
+  'history.filterDate': { pt: 'Todas as datas', en: 'All dates' },
+  'history.reverted': { pt: 'Revertido', en: 'Reverted' },
+  'history.scoreAdjusted': { pt: 'Score ajustado', en: 'Score adjusted' },
+  'history.redistribute': { pt: 'Redistribuir', en: 'Redistribute' },
+  'history.redistributeTitle': { pt: 'Item revertido — redistribuir?', en: 'Item reverted — redistribute?' },
+  'history.dismiss': { pt: 'Dispensar', en: 'Dismiss' },
 
   // admin
   'admin.title': { pt: 'Painel Admin', en: 'Admin Panel' },
@@ -134,6 +150,8 @@ const translations = {
   'admin.loading': { pt: 'Carregando...', en: 'Loading...' },
   'admin.characters': { pt: 'Personagens', en: 'Characters' },
   'admin.score': { pt: 'pontos', en: 'score' },
+  'admin.newPlayer': { pt: 'Novo', en: 'New' },
+  'admin.minIlevel': { pt: 'iLevel mínimo por dificuldade', en: 'Min iLevel per difficulty' },
   'admin.helpTitle': { pt: 'Como funciona o cálculo de prioridade', en: 'How priority calculation works' },
   'admin.formula.alphaTitle': { pt: 'α Alpha — Upgrade', en: 'α Alpha — Upgrade' },
   'admin.formula.alphaDesc': {

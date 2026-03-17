@@ -1,5 +1,7 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { useApp } from '../context/AppContext'
+import { isDemoMode, getOutdatedWarnings } from '../services/demoData'
+import api from '../services/api'
 
 const v1Features = [
   { icon: '🎯', titleKey: 'dash.feat.loot' as const, descKey: 'dash.feat.lootDesc' as const },
@@ -27,6 +29,39 @@ const changelog = [
 
 export default function Dashboard() {
   const { t } = useApp()
+  const [outdated, setOutdated] = useState<{ name: string; count: number }[]>([])
+
+  useEffect(() => {
+    const load = async () => {
+      if (isDemoMode()) {
+        setOutdated(getOutdatedWarnings())
+      } else {
+        try {
+          const r = await api.get('/api/guild/wowaudit/wishlists')
+          const characters = r.data?.raw?.characters || []
+          const warnings: { name: string; count: number }[] = []
+          for (const c of characters) {
+            let count = 0
+            for (const inst of (c.instances || [])) {
+              for (const diff of (inst.difficulties || [])) {
+                const wl = diff.wishlist || {}
+                for (const enc of (wl.encounters || [])) {
+                  for (const item of (enc.items || [])) {
+                    for (const wish of (item.wishes || [])) {
+                      if (wish.outdated && wish.outdated.old && wish.outdated.new) count++
+                    }
+                  }
+                }
+              }
+            }
+            if (count > 0) warnings.push({ name: c.name, count })
+          }
+          setOutdated(warnings.sort((a, b) => b.count - a.count))
+        } catch {}
+      }
+    }
+    load()
+  }, [])
 
   return (
     <div className="tab-content">
@@ -49,6 +84,27 @@ export default function Dashboard() {
             ))}
           </div>
         </div>
+
+        {/* Outdated SimC Warnings */}
+        {outdated.length > 0 && (
+          <div style={{ width: '100%', textAlign: 'left' }}>
+            <h3 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 700, color: '#f59e0b' }}>{t('dash.outdatedTitle')}</h3>
+            <p style={{ margin: '0 0 10px', fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>{t('dash.outdatedDesc')}</p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8 }}>
+              {outdated.map((w, i) => (
+                <div key={i} style={{
+                  padding: '10px 14px', borderRadius: 8,
+                  border: '1px solid rgba(245,158,11,0.3)',
+                  background: 'rgba(245,158,11,0.06)',
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                }}>
+                  <span style={{ fontWeight: 600, fontSize: 13 }}>{w.name}</span>
+                  <span style={{ fontSize: 11, color: '#f59e0b', fontWeight: 600 }}>{w.count} {t('dash.outdatedItems')}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Changelog */}
         <div style={{ width: '100%', textAlign: 'left' }}>

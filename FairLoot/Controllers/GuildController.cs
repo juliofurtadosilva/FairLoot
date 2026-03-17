@@ -112,9 +112,24 @@ namespace FairLoot.Controllers
 
             var chars = await _context.Characters
                 .Where(c => c.GuildId == user!.GuildId && c.IsActive)
-                .Select(c => new { c.Name, c.Realm, c.Class, c.Score })
+                .Select(c => new { c.Id, c.Name, c.Realm, c.Class, c.Score, c.IsNewPlayer })
                 .ToListAsync();
             return Ok(chars);
+        }
+
+        // POST api/guild/characters/{charId}/toggle-new
+        [HttpPost("characters/{charId:guid}/toggle-new")]
+        public async Task<IActionResult> ToggleNewPlayer(Guid charId)
+        {
+            var (user, error) = await GetAuthenticatedAdminAsync(_context);
+            if (error != null) return error;
+
+            var ch = await _context.Characters.FirstOrDefaultAsync(c => c.Id == charId && c.GuildId == user!.GuildId);
+            if (ch == null) return NotFound();
+
+            ch.IsNewPlayer = !ch.IsNewPlayer;
+            await _context.SaveChangesAsync();
+            return Ok(new { ch.Id, ch.IsNewPlayer });
         }
 
         [HttpGet("wowaudit/wishlists")]
@@ -194,6 +209,12 @@ namespace FairLoot.Controllers
                 user!.Guild!.PriorityBeta = updatedGuild.PriorityBeta.Value;
             if (updatedGuild.PriorityGamma.HasValue && updatedGuild.PriorityGamma.Value >= 0 && updatedGuild.PriorityGamma.Value <= 1)
                 user!.Guild!.PriorityGamma = updatedGuild.PriorityGamma.Value;
+            if (updatedGuild.MinIlevelNormal.HasValue)
+                user!.Guild!.MinIlevelNormal = updatedGuild.MinIlevelNormal.Value;
+            if (updatedGuild.MinIlevelHeroic.HasValue)
+                user!.Guild!.MinIlevelHeroic = updatedGuild.MinIlevelHeroic.Value;
+            if (updatedGuild.MinIlevelMythic.HasValue)
+                user!.Guild!.MinIlevelMythic = updatedGuild.MinIlevelMythic.Value;
 
             await _context.SaveChangesAsync();
             return Ok(user!.Guild);

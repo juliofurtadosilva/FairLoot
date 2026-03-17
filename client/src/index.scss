@@ -159,3 +159,51 @@ nav { position: sticky; top:0; z-index: 20; overflow: visible }
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* Loading screen */
+.loading-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(1200px 600px at 10% 0%, var(--grad-a), transparent 60%),
+              radial-gradient(1000px 500px at 90% 10%, var(--grad-b), transparent 55%),
+              linear-gradient(180deg, var(--bg) 0%, var(--bg-end) 100%);
+}
+
+.loading-screen__content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+}
+
+.loading-screen__logo {
+  width: 120px;
+  height: auto;
+  object-fit: contain;
+  animation: loadingPulse 1.8s ease-in-out infinite;
+}
+
+@keyframes loadingPulse {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.06); }
+}
+
+/* Demo banner */
+.demo-banner {
+  background: rgba(250,204,21,0.10);
+  border: 1px solid rgba(250,204,21,0.25);
+  color: #facc15;
+  padding: 6px 16px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* Slide-in animation for redistribute toast */
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
