@@ -383,13 +383,13 @@ namespace FairLoot.Services
         }
 
         // Return structured summary per character (difficulties, encounters, totals)
-        public async Task<List<DTOs.CharacterWishlistSummary>> GetGuildWishlistSummaryAsync(string apiKeyOrUrl)
+        public async Task<List<DTOs.CharacterWishlistSummary>> GetGuildWishlistSummaryAsync(string apiKeyOrUrl, bool force = false)
         {
             var summaries = new List<DTOs.CharacterWishlistSummary>();
             if (string.IsNullOrEmpty(apiKeyOrUrl)) return summaries;
 
             // check in-memory cache
-            if (_wishlistSummaryCache.TryGetValue(apiKeyOrUrl, out var cached) && cached.Expiry > DateTime.UtcNow)
+            if (!force && _wishlistSummaryCache.TryGetValue(apiKeyOrUrl, out var cached) && cached.Expiry > DateTime.UtcNow)
             {
                 return cached.Data;
             }

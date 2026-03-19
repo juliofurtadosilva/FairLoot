@@ -13,6 +13,8 @@ namespace FairLoot.DTOs
         public int? ItemId { get; set; }
         public string? ItemName { get; set; }
         public int Count { get; set; } = 1;
+        // optional difficulty filter ("normal", "heroic", "mythic")
+        public string? Difficulty { get; set; }
     }
 
     public class SuggestionResponse

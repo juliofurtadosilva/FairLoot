@@ -90,7 +90,7 @@ namespace FairLoot.Controllers
                 .Where(c => c.GuildId == user!.GuildId)
                 .ToListAsync())
                 .GroupBy(c => c.Name)
-                .ToDictionary(g => g.Key, g => g.First());
+                .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
 
             // load recent loot history (last 30 days) for loot count fairness
             var recentCutoff = DateTime.UtcNow.AddDays(-30);
@@ -110,7 +110,7 @@ namespace FairLoot.Controllers
             {
                 var resp = new SuggestionResponse { Item = item };
 
-                // for each character in summary, find item percentage
+                // for each character in summary, find item percentage (respect optional difficulty filter)
                 foreach (var ch in summary)
                 {
                     double bestItemPerc = 0;
@@ -118,6 +118,8 @@ namespace FairLoot.Controllers
                     {
                         foreach (var d in ch.Difficulties)
                         {
+                            // if caller provided a difficulty, only consider that difficulty
+                            if (!string.IsNullOrEmpty(item.Difficulty) && !string.Equals(d.Difficulty, item.Difficulty, StringComparison.OrdinalIgnoreCase)) continue;
                             if (d.Encounters == null) continue;
                             foreach (var e in d.Encounters)
                             {
@@ -200,7 +202,7 @@ namespace FairLoot.Controllers
                     .ThenByDescending(c => c.ItemPercentage)
                     .ThenBy(c => c.OverallScore)
                     .ThenBy(c => c.LastLootDate ?? DateTime.MinValue)
-                    .Take(5).ToList();
+                    .ToList();
                 responses.Add(resp);
             }
 

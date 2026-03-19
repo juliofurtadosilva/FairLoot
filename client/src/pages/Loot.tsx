@@ -24,6 +24,40 @@ export default function Loot() {
   const [suggestions, setSuggestions] = useState<Record<number, Candidate[]>>({})
   const [suggestionMeta, setSuggestionMeta] = useState<Record<number, SuggestionMeta>>({})
   const [assignments, setAssignments] = useState<Record<number, string>>({})
+  const [reservedMap, setReservedMap] = useState<Record<string, boolean>>({})
+
+  const normalizeName = (n?: string) => {
+    if (!n) return ''
+    try {
+      return n.toString().normalize('NFD').replace(/\p{Diacritic}/gu, '').trim().toLowerCase()
+    } catch {
+      return n.toString().trim().toLowerCase()
+    }
+  }
+
+  const assignToIndex = (index: number, charName: string) => {
+    console.log('[assignToIndex] before', { index, charName, assignments, reservedMap })
+    const updated = { ...assignments }
+    // clear this person from other indices unless that index is single-upgrade-only
+    Object.keys(updated).forEach(kidx => {
+      const i = Number(kidx)
+      if (i !== index && normalizeName(updated[i]) === normalizeName(charName) && !suggestionMeta[i]?.singleUpgradeOnly) {
+        updated[i] = ''
+      }
+    })
+    updated[index] = charName || ''
+    setAssignments(updated)
+    // update reserved state by clearing other assignments and updating UI atomically
+    const newReserved: Record<string, boolean> = {}
+    Object.entries(updated).forEach(([k, v]) => {
+      const ki = Number(k)
+      if (!v) return
+      if (suggestionMeta[ki]?.singleUpgradeOnly) return
+      newReserved[normalizeName(v)] = true
+    })
+    setReservedMap(newReserved)
+    console.log('[assignToIndex] after', { updated, newReserved })
+  }
   const [chars, setChars] = useState<any[]>([])
   const [raidMapState, setRaidMapState] = useState<Record<string, Record<string, Record<string, Item[]>>>>({})
   const [bossList, setBossList] = useState<string[]>([])
@@ -340,7 +374,7 @@ export default function Loot() {
     }
   }
 
-  const demoSuggest = (payloadUnits: { itemId?: number | null; itemName: string; icon?: string }[]) => {
+  const demoSuggest = (payloadUnits: { itemId?: number | null; itemName: string; icon?: string }[], difficulty?: string) => {
     const guild = getDemoGuild()
     const alpha = guild.priorityAlpha ?? 0.4
     const beta = guild.priorityBeta ?? 0.3
@@ -364,6 +398,8 @@ export default function Loot() {
           for (const inst of ch.instances) {
             if (!inst.difficulties) continue
             for (const d of inst.difficulties) {
+              const dName = (d.difficulty || '').toString().trim().toLowerCase()
+              if (difficulty && dName !== (difficulty || '').toLowerCase()) continue
               if (!d.encounters) continue
               for (const e of d.encounters) {
                 if (!e.items) continue
@@ -406,7 +442,6 @@ export default function Loot() {
 
       const sorted = candidates
         .sort((a, b) => b.priority - a.priority || b.itemPercentage - a.itemPercentage || a.overallScore - b.overallScore || (new Date(a.lastLootDate || 0).getTime()) - (new Date(b.lastLootDate || 0).getTime()))
-        .slice(0, 5)
 
       const positiveCount = sorted.filter(c => c.itemPercentage > 0).length
       return { candidates: sorted, allZeroUpgrade: positiveCount === 0, singleUpgradeOnly: positiveCount === 1 }
@@ -431,9 +466,9 @@ export default function Loot() {
     try {
       let data: any[]
       if (isDemoMode()) {
-        data = demoSuggest(payloadUnits)
+        data = demoSuggest(payloadUnits, difficulty)
       } else {
-        const payload = { items: payloadUnits.map(u => ({ itemId: u.itemId, itemName: u.itemName, count: 1 })) }
+        const payload = { items: payloadUnits.map(u => ({ itemId: u.itemId, itemName: u.itemName, count: 1, difficulty })) }
         const r = await api.post('/api/loot/suggest', payload)
         data = r.data as any[]
       }
@@ -453,18 +488,58 @@ export default function Loot() {
         if (!grouped.has(key)) grouped.set(key, [])
         grouped.get(key)!.push(idx)
       })
+      // build flat list of indices but prioritize single-upgrade-only items
+      const allIndices: number[] = []
+      grouped.forEach(indices => allIndices.push(...indices))
+      // use local meta object (not the state) to avoid relying on async state updates
+      const localMeta = meta
+      const singleIdx = allIndices.filter(i => localMeta[i]?.singleUpgradeOnly)
+      const normalIdx = allIndices.filter(i => !localMeta[i]?.singleUpgradeOnly)
+      const globalUsed = new Set<string>()
+      // for each group, assign distinct top candidates across the group's indices
       grouped.forEach(indices => {
         const candidates = map[indices[0]] || []
-        // candidates arrive sorted by priority (upgrade + fairness) from backend
         const upgradeCandidates = candidates.filter(c => c.itemPercentage > 0)
+        // sort by priority then itemPercentage so we pick the best available per slot
+        upgradeCandidates.sort((a, b) => (b.priority - a.priority) || (b.itemPercentage - a.itemPercentage))
         if (upgradeCandidates.length === 0) return
-        indices.forEach((itemIdx, pos) => {
-          if (pos < upgradeCandidates.length) {
-            assignMap[itemIdx] = upgradeCandidates[pos].characterName
+        for (const itemIdx of indices) {
+          // if this unit is single-upgrade-only, assign the top candidate even if already used elsewhere
+          const isSingle = localMeta[itemIdx]?.singleUpgradeOnly
+          let found = upgradeCandidates.find(c => !globalUsed.has(normalizeName(c.characterName)))
+          if (!found && isSingle) {
+            // pick top candidate regardless of globalUsed, but do not mark as used globally
+            found = upgradeCandidates[0]
+            assignMap[itemIdx] = found.characterName
+            // do NOT add to globalUsed so this 'free' assignment doesn't block others
+          } else if (found) {
+            assignMap[itemIdx] = found.characterName
+            // only reserve globally if this was a competitive assignment
+            globalUsed.add(normalizeName(found.characterName))
           }
-        })
+        }
       })
       setAssignments(assignMap)
+      // initialize reserved map from prefill (normalized keys)
+      const initReserved: Record<string, boolean> = {}
+      Object.entries(assignMap).forEach(([k, v]) => {
+        const idx = Number(k)
+        if (!v) return
+        // do not reserve single-upgrade-only assignments (they are free and shouldn't block others)
+        if (localMeta[idx]?.singleUpgradeOnly) return
+        initReserved[normalizeName(v)] = true
+      })
+      setReservedMap(initReserved)
+      console.log('[goSuggest] prefill', { map, meta, assignMap, initReserved })
+      // detailed per-index debug
+      allocItems.forEach((_, idx) => {
+        const itemKeyLocal = getItemKey(allocItems[idx])
+        const groupIndicesLocal = allocItems.reduce<number[]>((acc, item, i) => { if (getItemKey(item) === itemKeyLocal) acc.push(i); return acc }, [])
+        const groupPosition = groupIndicesLocal.indexOf(idx)
+        const cand = map[idx] || []
+        const assignedElsewhere = Object.entries(assignMap).filter(([k, v]) => v && Number(k) !== idx).map(([k, v]) => v)
+        console.log('[goSuggest:index]', { idx, itemKeyLocal, groupIndicesLocal, groupPosition, candidates: cand.slice(0,6), assignedElsewhere, assignedPrefill: assignMap[idx], reservedInit: initReserved })
+      })
     } catch (e) {
       console.error(e)
     } finally { setLoading(false) }
@@ -473,14 +548,52 @@ export default function Loot() {
   const getTransmogStatus = (idx: number) => {
     const meta = suggestionMeta[idx]
     const candidates = suggestions[idx] || []
-    const upgradeCandidates = candidates.filter(c => c.itemPercentage > 0)
     const itemKey = getItemKey(allocItems[idx])
     const groupIndices = allocItems.reduce<number[]>((acc, item, i) => {
       if (getItemKey(item) === itemKey) acc.push(i)
       return acc
     }, [])
     const groupPosition = groupIndices.indexOf(idx)
-    const isTransmog = !!meta?.allZeroUpgrade || groupPosition >= upgradeCandidates.length
+
+    // assigned names on indices outside this group (normalized)
+    const assignedElsewhereFromOthers = new Set<string>()
+    Object.entries(assignments).forEach(([k, v]) => {
+      const ki = Number(k)
+      if (!v) return
+      // skip assignments that are inside this group
+      if (groupIndices.includes(ki)) return
+      // skip single-upgrade-only assignments (they are free and shouldn't block others)
+      if (suggestionMeta[ki]?.singleUpgradeOnly) return
+      assignedElsewhereFromOthers.add(normalizeName(v))
+    })
+    // include reserved names that are not already assigned within this group
+    const groupAssignedNames = new Set<string>()
+    Object.entries(assignments).forEach(([k, v]) => {
+      const ki = Number(k)
+      if (!v) return
+      if (groupIndices.includes(ki)) groupAssignedNames.add(normalizeName(v))
+      else if (!suggestionMeta[ki]?.singleUpgradeOnly) assignedElsewhereFromOthers.add(normalizeName(v))
+    })
+    Object.keys(reservedMap || {}).forEach(n => {
+      if (!groupAssignedNames.has(n)) assignedElsewhereFromOthers.add(n)
+    })
+
+    // candidate normalized names for this item
+    const candidateNames = new Set<string>()
+    for (const c of candidates) if (c.itemPercentage > 0) candidateNames.add(normalizeName(c.characterName))
+
+    // available names are candidate names minus assigned elsewhere (others)
+    const availableNames = new Set<string>()
+    candidateNames.forEach(n => { if (!assignedElsewhereFromOthers.has(n)) availableNames.add(n) })
+
+    // union with names already assigned within this group (so they count toward upgrade slots)
+    const uniqueUpgradeNames = new Set<string>([...availableNames, ...Array.from(groupAssignedNames)])
+
+    const upgradeCandidates = meta?.singleUpgradeOnly
+      ? candidates.filter(c => c.itemPercentage > 0)
+      : candidates.filter(c => c.itemPercentage > 0 && !assignedElsewhereFromOthers.has(normalizeName(c.characterName)))
+
+    const isTransmog = !!meta?.allZeroUpgrade || groupPosition >= uniqueUpgradeNames.size
     return { isTransmog, upgradeCandidates }
   }
 
@@ -490,11 +603,22 @@ export default function Loot() {
     const updated = { ...assignments }
     allocItems.forEach((_, idx) => {
       if (getTransmogStatus(idx).isTransmog && updated[idx]) {
+        // clear assignment if candidate is now considered transmog due to selection elsewhere
         updated[idx] = ''
         changed = true
       }
     })
     if (changed) setAssignments(updated)
+    // if any assignments were cleared, also update reservedMap to reflect current assignments
+    const newReserved: Record<string, boolean> = {}
+    Object.entries(updated).forEach(([k, v]) => {
+      const ki = Number(k)
+      if (!v) return
+      // do not reserve single-upgrade-only assignments (they are free)
+      if (suggestionMeta[ki]?.singleUpgradeOnly) return
+      newReserved[normalizeName(v)] = true
+    })
+    setReservedMap(newReserved)
   }, [allocItems, suggestionMeta, suggestions, assignments])
 
   const doDistribute = async () => {
@@ -710,8 +834,36 @@ export default function Loot() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 10 }}>
               {allocItems.map((it, idx) => {
                 const allCandidates = suggestions[idx] || []
-                const topCandidates = allCandidates.slice(0, 3)
-                const upgradeCandidates = allCandidates.filter(c => c.itemPercentage > 0)
+                const baseUpgradeCandidates = allCandidates.filter(c => c.itemPercentage > 0)
+                // compute group indices for this item key
+                const itemKeyLocal = getItemKey(it)
+                const groupIndicesLocal = allocItems.reduce<number[]>((acc, item, i) => { if (getItemKey(item) === itemKeyLocal) acc.push(i); return acc }, [])
+                // compute assigned elsewhere (excluding indices in this group) using normalized names
+                const assignedElsewhereFromOthers = new Set<string>()
+                const groupAssignedNamesLocal = new Set<string>()
+                Object.entries(assignments).forEach(([k, v]) => {
+                  const ki = Number(k)
+                  if (!v) return
+                  if (groupIndicesLocal.includes(ki)) {
+                    groupAssignedNamesLocal.add(normalizeName(v))
+                  } else {
+                    // skip single-upgrade-only assignments (they're free and shouldn't block others)
+                    if (suggestionMeta[ki]?.singleUpgradeOnly) return
+                    assignedElsewhereFromOthers.add(normalizeName(v))
+                  }
+                })
+                // include reserved names not already assigned inside the group
+                Object.keys(reservedMap || {}).forEach(n => { if (!groupAssignedNamesLocal.has(n)) assignedElsewhereFromOthers.add(n) })
+                // if this item is single-upgrade-only, do not exclude the single candidate
+                const singleUpgrade = suggestionMeta[idx]?.singleUpgradeOnly
+                // show all upgrade candidates, even if they're already selected elsewhere — we'll visually mark those
+                const visibleUpgrades = singleUpgrade
+                  ? baseUpgradeCandidates
+                  : baseUpgradeCandidates
+                // sort upgrade candidates locally by itemPercentage then priority for display
+                const sortedUpgrades = [...visibleUpgrades].sort((a, b) => (b.itemPercentage - a.itemPercentage) || (b.priority - a.priority))
+                // show only upgrade candidates in the primary buttons
+                const topCandidates = sortedUpgrades.slice(0, 3)
                 const { isTransmog } = getTransmogStatus(idx)
                 return (
                   <div key={idx} className="card" style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -725,44 +877,57 @@ export default function Loot() {
                     {!isTransmog && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 5, flex: 1 }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          {topCandidates.map((c: any, k: number) => {
-                            const isSelected = assignments[idx] === c.characterName
+                          {topCandidates.map((c: any) => {
+                            const isSelected = normalizeName(assignments[idx]) === normalizeName(c.characterName)
                             const classLabel = c.class ? ` (${c.class})` : ''
+                            const isAssignedElsewhere = assignedElsewhereFromOthers.has(normalizeName(c.characterName)) && !isSelected
                             return (
                               <button
-                                key={k}
-                                onClick={() => setAssignments({ ...assignments, [idx]: c.characterName })}
-                                title={`Upgrade: ${Number(c.itemPercentage).toFixed(1)}% | Score: ${Number(c.overallScore).toFixed(1)} | Itens recebidos (30d): ${c.lootReceivedCount} | Priority: ${Number(c.priority).toFixed(3)}`}
+                                key={c.characterName}
+                                onClick={() => assignToIndex(idx, c.characterName)}
+                                title={`Upgrade: ${Number(c.itemPercentage).toFixed(1)}% | Score: ${Number(c.overallScore).toFixed(1)} | Itens recebidos (30d): ${c.lootReceivedCount} | Priority: ${Number(c.priority).toFixed(3)}${isAssignedElsewhere ? ' | Selecionado em outro item' : ''}`}
                                 style={{
                                   padding: '6px 10px',
                                   borderRadius: 6,
                                   fontSize: 11,
-                                  border: isSelected ? '2px solid var(--color-yellow)' : '1px solid var(--border)',
-                                  background: isSelected ? 'rgba(var(--accent-rgb),0.10)' : 'transparent',
+                                  border: isSelected ? '2px solid var(--color-yellow)' : (isAssignedElsewhere ? '2px solid rgba(239,68,68,0.95)' : '1px solid var(--border)'),
+                                  background: isSelected ? 'rgba(var(--accent-rgb),0.10)' : (isAssignedElsewhere ? 'rgba(239,68,68,0.04)' : 'transparent'),
+                                  opacity: 1,
                                   textAlign: 'left',
                                   transition: 'border-color 0.2s, background 0.2s',
                                   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                  cursor: 'pointer'
                                 }}
                               >
                                 <span style={{ fontWeight: 600 }}>{c.characterName}{classLabel}</span>
-                                <span style={{ fontSize: 9, color: 'var(--muted)', marginLeft: 6, flexShrink: 0 }}>
-                                  ⬆{Number(c.itemPercentage).toFixed(1)}% · P:{Number(c.priority * 100).toFixed(0)}
+                                <span style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
+                                  {isAssignedElsewhere && (
+                                    <span style={{ fontSize: 11, fontWeight: 700, color: 'rgb(239 68 68)', background: 'rgba(239,68,68,0.06)', padding: '2px 6px', borderRadius: 6 }}>
+                                      Selecionado
+                                    </span>
+                                  )}
+                                  <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', background: 'rgba(var(--accent-rgb),0.06)', padding: '2px 6px', borderRadius: 6 }}>
+                                    ⬆{Number(c.itemPercentage).toFixed(1)}%
+                                  </span>
+                                  <span style={{ fontSize: 11, fontWeight: 700, color: '#fff', background: 'rgba(0,0,0,0.25)', padding: '2px 6px', borderRadius: 6 }}>
+                                    P:{Number(c.priority * 100).toFixed(0)}
+                                  </span>
                                 </span>
                               </button>
                             )
                           })}
                         </div>
-                        {upgradeCandidates.length > 3 && (
+                        {sortedUpgrades.length > 3 && (
                           <select
                             value={assignments[idx] || ''}
-                            onChange={e => setAssignments({ ...assignments, [idx]: e.target.value })}
+                            onChange={e => assignToIndex(idx, e.target.value)}
                             style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--select-bg)', color: 'var(--text)', fontSize: 11, width: '100%', marginTop: 2 }}
                           >
                             <option value="">{t('loot.choose')}</option>
-                            {upgradeCandidates.map((c, k) => {
+                            {sortedUpgrades.slice(0, 12).map((c) => {
                               const classLabel = c.class ? ` (${c.class})` : ''
                               return (
-                                <option key={k} value={c.characterName}>{c.characterName}{classLabel} — ⬆{Number(c.itemPercentage).toFixed(1)}% · P:{Number(c.priority * 100).toFixed(0)}</option>
+                                <option key={c.characterName} value={c.characterName}>{c.characterName}{classLabel} — ⬆{Number(c.itemPercentage).toFixed(1)}% · P:{Number(c.priority * 100).toFixed(0)}</option>
                               )
                             })}
                           </select>

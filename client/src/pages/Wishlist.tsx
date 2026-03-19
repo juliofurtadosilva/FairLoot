@@ -188,6 +188,18 @@ export default function Wishlist() {
               color: 'var(--text)', fontSize: 14, outline: 'none',
             }}
           />
+          <button
+            onClick={() => {
+              sessionStorage.removeItem('fairloot_wishlist_cache');
+              setInitialLoading(true);
+              fetchData(true);
+            }}
+            style={{
+              padding: '8px 16px', borderRadius: 8, border: '1px solid var(--accent)',
+              background: 'rgba(var(--accent-rgb),0.10)', color: 'var(--accent)', fontWeight: 600,
+              fontSize: 13, cursor: 'pointer', minWidth: 80
+            }}
+          >🔄 Atualizar wishlist</button>
           {raids.length > 1 && (
             <select
               value={selectedRaid}

@@ -133,7 +133,7 @@ namespace FairLoot.Controllers
         }
 
         [HttpGet("wowaudit/wishlists")]
-        public async Task<IActionResult> GetWowAuditWishlist()
+        public async Task<IActionResult> GetWowAuditWishlist([FromQuery] bool force = false)
         {
             var (user, error) = await GetAuthenticatedUserWithGuildAsync(_context);
             if (error != null) return error;
@@ -142,7 +142,7 @@ namespace FairLoot.Controllers
             if (string.IsNullOrEmpty(apiKey))
                 return BadRequest("Wowaudit API key não configurada para esta guild.");
 
-            var summary = await _wow.GetGuildWishlistSummaryAsync(apiKey);
+            var summary = await _wow.GetGuildWishlistSummaryAsync(apiKey, force);
 
             // if WowAudit returned data, save to DB cache for future cold starts
             if (summary.Count > 0)
