@@ -65,7 +65,7 @@ export default function Dashboard() {
 
   return (
     <div className="tab-content">
-      <div className="card tab-card" style={{ maxWidth: 760, textAlign: 'center', gap: 24 }}>
+      <div className="card tab-card" style={{textAlign: 'center', gap: 24 }}>
         <h2 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--accent)' }}>{t('dash.welcome')}</h2>
         <p style={{ margin: 0, color: 'var(--muted)', fontSize: 14, lineHeight: 1.7 }}>{t('dash.subtitle')}</p>
 

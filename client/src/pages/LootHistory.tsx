@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react'
 import api from '../services/api'
 import { useApp } from '../context/AppContext'
 import Spinner from '../components/Spinner'
+import './LootHistory.scss'
 import { isDemoMode, getDemoLootHistory, removeDemoLootHistory, getDemoWishlistSummary, getDemoCharacters, getDemoGuild, addDemoLootHistory } from '../services/demoData'
 
 type LootDrop = {
@@ -50,6 +51,7 @@ export default function LootHistory() {
   const [filterPlayer, setFilterPlayer] = useState('')
   const [filterBoss, setFilterBoss] = useState('')
   const [filterDate, setFilterDate] = useState('')
+  const [showReverted, setShowReverted] = useState(true)
 
   // redistribute panel
   const [redistributeInfo, setRedistributeInfo] = useState<RedistributeInfo | null>(null)
@@ -307,12 +309,13 @@ export default function LootHistory() {
   // filtered drops
   const filtered = useMemo(() => {
     return drops.filter(d => {
+      if (!showReverted && d.isReverted) return false
       if (filterPlayer && !(d.assignedTo || '').toLowerCase().includes(filterPlayer.toLowerCase()) && !(d.itemName || '').toLowerCase().includes(filterPlayer.toLowerCase())) return false
       if (filterBoss && d.boss !== filterBoss) return false
       if (filterDate && new Date(d.createdAt).toLocaleDateString() !== filterDate) return false
       return true
     })
-  }, [drops, filterPlayer, filterBoss, filterDate])
+  }, [drops, filterPlayer, filterBoss, filterDate, showReverted])
 
   const formatDate = (iso: string) => {
     const d = new Date(iso)
@@ -320,6 +323,13 @@ export default function LootHistory() {
   }
 
   const upgradeCandidates = redistCandidates.filter(c => c.itemPercentage > 0)
+
+  const showRevertedLabel = (() => {
+    const key = 'history.showReverted'
+    const txt = t(key)
+    if (typeof txt === 'string' && txt !== key && txt.trim() !== '') return txt
+    return lang === 'pt' ? 'Mostrar revertidos' : 'Show reverted'
+  })()
 
   return (
     <div className="tab-content">
@@ -331,18 +341,18 @@ export default function LootHistory() {
         {!initialLoading && (
           <>
             {/* Filter bar */}
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12, alignItems: 'center' }}>
+            <div className="lh-filter-bar">
               <input
                 type="text"
                 value={filterPlayer}
                 onChange={e => setFilterPlayer(e.target.value)}
                 placeholder={t('history.filterPlayer')}
-                style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--input-bg)', color: 'var(--text)', fontSize: 12, flex: '1 1 180px', minWidth: 140 }}
+                className="lh-input"
               />
               <select
                 value={filterBoss}
                 onChange={e => setFilterBoss(e.target.value)}
-                style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--select-bg)', color: 'var(--text)', fontSize: 12 }}
+                className="lh-select"
               >
                 <option value="">{t('history.filterBoss')}</option>
                 {bosses.map(b => <option key={b} value={b}>{b}</option>)}
@@ -350,95 +360,119 @@ export default function LootHistory() {
               <select
                 value={filterDate}
                 onChange={e => setFilterDate(e.target.value)}
-                style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--select-bg)', color: 'var(--text)', fontSize: 12 }}
+                className="lh-select"
               >
                 <option value="">{t('history.filterDate')}</option>
                 {dates.map(d => <option key={d} value={d}>{d}</option>)}
               </select>
+              <label className="lh-toggle" htmlFor="lh-show-reverted">
+                <input id="lh-show-reverted" className="lh-toggle-input" type="checkbox" checked={showReverted} onChange={e => setShowReverted(e.target.checked)} aria-label={showRevertedLabel} />
+                <span className="lh-toggle-switch" aria-hidden="true" />
+                <span className="lh-toggle-label">{showRevertedLabel}</span>
+              </label>
             </div>
 
-            {filtered.length === 0 && <div style={{ color: 'var(--muted)', textAlign: 'center', padding: 20 }}>{t('history.noRecords')}</div>}
+            {filtered.length === 0 && <div className="lh-no-records">{t('history.noRecords')}</div>}
 
-            {/* Grid of cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 10, maxHeight: 'calc(100vh - 300px)', overflowY: 'auto', padding: '2px' }}>
-              {filtered.map(d => {
-                const reverted = !!d.isReverted
-                const isTransmog = !d.assignedTo
-                const icon = getIcon(d)
-                return (
-                  <div
-                    key={d.id}
-                    className="card"
-                    style={{
-                      padding: '10px 12px',
-                      display: 'flex', flexDirection: 'column', gap: 6,
-                      border: reverted ? '1.5px solid rgba(239,68,68,0.5)' : undefined,
-                      background: reverted ? 'rgba(239,68,68,0.06)' : undefined,
-                      opacity: reverted ? 0.75 : 1,
-                      transition: 'opacity 0.3s, border-color 0.3s, background 0.3s',
-                    }}
-                  >
-                    {/* Item header */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid rgba(var(--accent-rgb),0.1)', paddingBottom: 6 }}>
-                      {icon
-                        ? <img src={icon} alt="" style={{ width: 28, height: 28, borderRadius: 4, flexShrink: 0 }} draggable={false} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
-                        : <div style={{ width: 28, height: 28, background: 'var(--panel-bg)', borderRadius: 4, flexShrink: 0 }} />
-                      }
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 700, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: reverted ? 'line-through' : 'none' }}>
-                          {d.itemName}
-                        </div>
-                        <div style={{ fontSize: 10, color: 'var(--muted)' }}>{d.boss} · {d.difficulty}</div>
-                      </div>
-                      {reverted && (
-                        <span style={{ fontSize: 9, fontWeight: 700, color: '#ef4444', textTransform: 'uppercase', letterSpacing: 0.5, flexShrink: 0 }}>
-                          {t('history.reverted')}
-                        </span>
-                      )}
-                    </div>
+            {/* Grid of cards grouped by date */}
+            <div className="lh-groups">
+              {(() => {
+                const grouped = ((): Array<[string, LootDrop[]]> => {
+                  const m = new Map<string, LootDrop[]>()
+                  for (const d of filtered) {
+                    const key = new Date(d.createdAt).toLocaleDateString()
+                    const arr = m.get(key) || []
+                    arr.push(d)
+                    m.set(key, arr)
+                  }
+                  return Array.from(m.entries()).sort((a, b) => new Date(b[0]).getTime() - new Date(a[0]).getTime())
+                })()
 
-                    {/* Assignment info */}
-                    {isTransmog ? (
-                      <div style={{ fontSize: 11, color: 'var(--color-transmog)', fontWeight: 600 }}>{t('history.transmog')}</div>
-                    ) : (
-                      <div style={{ fontSize: 11 }}>
-                        <span style={{ fontWeight: 600 }}>{d.assignedTo}</span>
-                        <span style={{ color: 'var(--muted)', marginLeft: 6 }}>+{Number(d.awardValue).toFixed(1)} pts</span>
-                      </div>
-                    )}
+                if (grouped.length === 0) return null
 
-                    {/* Reverted info */}
-                    {reverted && d.revertedAt && (
-                      <div style={{ fontSize: 10, color: '#ef4444', display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <span>↩ {formatDate(d.revertedAt)}</span>
-                        {d.awardValue > 0 && (
-                          <span style={{ marginLeft: 'auto', fontSize: 9 }}>
-                            {t('history.scoreAdjusted')}: -{Number(d.awardValue).toFixed(1)}
-                          </span>
-                        )}
-                      </div>
-                    )}
+                return grouped.map(([date, items]) => (
+                  <div key={date} className="lh-date-group">
+                    <div className="lh-date-header">{date}</div>
+                    <div className="lh-grid">
+                      {(() => {
+                        const byBoss = new Map<string, LootDrop[]>()
+                        for (const it of items) {
+                          const b = it.boss || 'Unknown'
+                          const arr = byBoss.get(b) || []
+                          arr.push(it)
+                          byBoss.set(b, arr)
+                        }
+                        return Array.from(byBoss.entries()).map(([bossName, bossItems]) => (
+                          <div key={bossName} className="lh-boss-group">
+                            <div className="lh-boss-header">{bossName}</div>
+                            <div className="lh-boss-items">
+                              {bossItems.map(d => {
+                        const reverted = !!d.isReverted
+                        const isTransmog = !d.assignedTo
+                        const icon = getIcon(d)
+                        return (
+                                <div
+                                  key={d.id}
+                                  className={`card lh-card ${reverted ? 'reverted' : ''}`}
+                                >
+                            {/* Item header */}
+                            <div className="lh-item-header">
+                              {icon
+                                ? <img src={icon} alt="" draggable={false} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
+                                : <div className="lh-icon-placeholder" />
+                              }
+                              <div className="lh-item-main">
+                                <div className={`lh-item-name ${reverted ? 'line-through' : ''}`}>
+                                  {d.itemName}
+                                </div>
+                                <div className="lh-item-meta">{d.boss} · {d.difficulty}</div>
+                              </div>
+                              {reverted && (
+                                <span className="lh-reverted-label">{t('history.reverted')}</span>
+                              )}
+                            </div>
 
-                    {/* Note */}
-                    {d.note && <div style={{ fontSize: 10, color: 'var(--muted)', fontStyle: 'italic' }}>💬 {d.note}</div>}
+                            {/* Assignment info */}
+                            {isTransmog ? (
+                              <div className="lh-transmog">{t('history.transmog')}</div>
+                            ) : (
+                              <div className="lh-assigned">
+                                <span className="lh-assigned-name">{d.assignedTo}</span>
+                                <span className="lh-assigned-score">+{Number(d.awardValue).toFixed(1)} pts</span>
+                              </div>
+                            )}
 
-                    {/* Footer */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto' }}>
-                      <div style={{ fontSize: 10, color: 'var(--muted)' }}>{formatDate(d.createdAt)}</div>
-                      {isAdmin && !reverted && (
-                        <button
-                          onClick={() => undo(d.id)}
-                          style={{
-                            fontSize: 10, padding: '3px 10px', borderRadius: 4,
-                            border: '1px solid rgba(239,68,68,0.4)', background: 'rgba(239,68,68,0.08)',
-                            color: '#ef4444', cursor: 'pointer', fontWeight: 600,
-                          }}
-                        >{t('history.undo')}</button>
-                      )}
+                            {/* Reverted info */}
+                            {reverted && d.revertedAt && (
+                              <div className="lh-reverted-info">
+                                <span>↩ {formatDate(d.revertedAt)}</span>
+                                {d.awardValue > 0 && (
+                                  <span className="lh-score-adjusted">{t('history.scoreAdjusted')}: -{Number(d.awardValue).toFixed(1)}</span>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Note */}
+                            {d.note && <div className="lh-note">💬 {d.note}</div>}
+
+                            {/* Footer */}
+                            <div className="lh-footer">
+                              <div className="lh-created">{formatDate(d.createdAt)}</div>
+                              {isAdmin && !reverted && (
+                                <button onClick={() => undo(d.id)} className="lh-undo-btn">{t('history.undo')}</button>
+                              )}
+                            </div>
+                          </div>
+                        )
+                              })}
+                            </div>
+                          </div>
+                        ))
+                      })()}
                     </div>
                   </div>
-                )
-              })}
+                ))
+              })()}
             </div>
           </>
         )}
