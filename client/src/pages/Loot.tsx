@@ -3,6 +3,7 @@ import api from '../services/api'
 import { useApp } from '../context/AppContext'
 import Spinner from '../components/Spinner'
 import { isDemoMode, getDemoWishlistSummary, getDemoCharacters, getDemoGuild, getDemoLootHistory, addDemoLootHistory } from '../services/demoData'
+import { getBossImageUrl } from '../services/bossMap'
 import voidspireImg from '../assets/voidspire.jpg'
 import dreamriftImg from '../assets/dreamrift.jpg'
 import marchImg from '../assets/marchonqueldanas.jpg'
@@ -61,6 +62,7 @@ export default function Loot() {
   const [chars, setChars] = useState<any[]>([])
   const [raidMapState, setRaidMapState] = useState<Record<string, Record<string, Record<string, Item[]>>>>({})
   const [bossList, setBossList] = useState<string[]>([])
+  const [windowWidth, setWindowWidth] = useState<number>(typeof window !== 'undefined' ? window.innerWidth : 1200)
   const [isAdmin, setIsAdmin] = useState(false)
   const [loading, setLoading] = useState(false)
   const [initialLoading, setInitialLoading] = useState(true)
@@ -666,101 +668,55 @@ export default function Loot() {
 
   return (
     <div className="tab-content">
-      <div className="card tab-card">
+      <div className="card tab-card loot-panel" style={{ maxHeight: 'calc(100vh - 120px)', overflowY: 'auto', paddingBottom: 32 }}>
         {initialLoading && <Spinner size={40} />}
         {!initialLoading && step === 1 && (
           <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', justifyContent: 'center', width: '100%' }}>
-              {/* Difficulty buttons — vertical */}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                <label style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 2 }}>{t('loot.difficulty')}</label>
-                {['normal', 'heroic', 'mythic'].map(d => (
-                  <button
-                    key={d}
-                    onClick={() => {
-                      setDifficulty(d as any)
-                      setBoss('')
-                      setBossList(raid ? computeBosses(raid, d) : [])
-                      setSelectedItems([])
-                      setAllocItems([])
-                      setSuggestions({})
-                      setSuggestionMeta({})
-                      setAssignments({})
-                      setStep(1)
-                    }}
-                    style={{
-                      padding: '8px 14px',
-                      borderRadius: 8,
-                      border: difficulty === d ? '2px solid var(--accent)' : '1px solid var(--border)',
-                      background: difficulty === d ? 'rgba(var(--accent-rgb),0.08)' : 'transparent',
-                      cursor: 'pointer',
-                      width: 42,
-                      textAlign: 'center',
-                      fontWeight: 600,
-                    }}>{d === 'normal' ? 'N' : d === 'heroic' ? 'H' : 'M'}</button>
-                ))}
-              </div>
+            <div className="loot-top-row" style={{ width: '100%', display: 'flex', gap: 20, alignItems: 'flex-start', flexWrap: 'wrap', justifyContent: 'center' }}>
+              <div className="loot-raid-column" style={{ display: 'flex', gap: 12, alignItems: 'flex-start', minWidth: 260 }}>
+                {/* Difficulty buttons — vertical */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                  <label style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 2 }}>{t('loot.difficulty')}</label>
+                  {['normal', 'heroic', 'mythic'].map(d => (
+                    <button
+                      key={d}
+                      onClick={() => {
+                        setDifficulty(d as any)
+                        setBoss('')
+                        setBossList(raid ? computeBosses(raid, d) : [])
+                        setSelectedItems([])
+                        setAllocItems([])
+                        setSuggestions({})
+                        setSuggestionMeta({})
+                        setAssignments({})
+                        setStep(1)
+                      }}
+                      style={{
+                        padding: '8px 14px',
+                        borderRadius: 8,
+                        border: difficulty === d ? '2px solid var(--accent)' : '1px solid var(--border)',
+                        background: difficulty === d ? 'rgba(var(--accent-rgb),0.08)' : 'transparent',
+                        cursor: 'pointer',
+                        width: 42,
+                        textAlign: 'center',
+                        fontWeight: 600,
+                      }}>{d === 'normal' ? 'N' : d === 'heroic' ? 'H' : 'M'}</button>
+                  ))}
+                </div>
 
-              {/* Raid images */}
-              {raidList.length === 0 && <div style={{ color: 'var(--muted)' }}>{t('loot.selectDiffToLoad')}</div>}
-              {raidList.map(instName => {
-                const img = getRaidImage(instName)
-                const disabled = !difficulty
-                return (
-                  <div
-                    key={instName}
-                    onClick={() => {
-                      if (disabled) return
-                      setRaid(instName)
-                      setBoss('')
-                      const bosses = computeBosses(instName, difficulty)
-                      setBossList(bosses)
-                      setSelectedItems([])
-                      setAllocItems([])
-                      setSuggestions({})
-                      setSuggestionMeta({})
-                      setAssignments({})
-                      setStep(1)
-                    }}
-                    style={{
-                      width: 160, height: 160,
-                      borderRadius: 12,
-                      border: raid === instName ? '2px solid var(--accent)' : '2px solid var(--muted)',
-                      boxShadow: raid === instName ? '0 0 12px rgba(var(--accent-rgb),0.45)' : 'none',
-                      background: img ? `url(${img}) center/cover no-repeat` : 'rgba(var(--accent-rgb),0.06)',
-                      display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
-                      cursor: disabled ? 'default' : 'pointer',
-                      overflow: 'hidden', position: 'relative',
-                      filter: disabled ? 'grayscale(100%) brightness(0.5)' : 'none',
-                      opacity: disabled ? 0.6 : 1,
-                      transition: 'filter 0.3s, opacity 0.3s, box-shadow 0.3s',
-                      userSelect: 'none', WebkitUserSelect: 'none',
-                    }}
-                  >
-                    <div style={{
-                      textAlign: 'center',
-                      padding: '6px 4px', fontSize: 13, fontWeight: 600,
-                      lineHeight: '1.3', color: '#fff',
-                      minHeight: 36, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)',
-                      borderRadius: '0 0 10px 10px',
-                      userSelect: 'none', WebkitUserSelect: 'none',
-                    }}>{instName}</div>
-                  </div>
-                )
-              })}
-            </div>
-
-            {raid && (
-              <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <div style={{ marginBottom: 8, fontSize: 15 }}><strong>{t('loot.raid')}:</strong> {raid}</div>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
-                  {bossList.length > 0 ? (
-                    bossList.map(b => (
-                      <button
-                        key={b}
+                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                  {raidList.length === 0 && <div style={{ color: 'var(--muted)' }}>{t('loot.selectDiffToLoad')}</div>}
+                  {raidList.map(instName => {
+                    const img = getRaidImage(instName)
+                    const disabled = !difficulty
+                    return (
+                      <div key={instName} className={`raid-item ${raid === instName ? 'selected' : ''} ${disabled ? 'disabled' : ''}`}
                         onClick={() => {
-                          setBoss(b)
+                          if (disabled) return
+                          setRaid(instName)
+                          setBoss('')
+                          const bosses = computeBosses(instName, difficulty)
+                          setBossList(bosses)
                           setSelectedItems([])
                           setAllocItems([])
                           setSuggestions({})
@@ -768,9 +724,104 @@ export default function Loot() {
                           setAssignments({})
                           setStep(1)
                         }}
-                        style={{ padding: '6px 8px', borderRadius: 6, border: boss === b ? '2px solid #10b981' : '1px solid var(--border)', background: boss === b ? 'rgba(16,185,129,0.06)' : 'transparent' }}
-                      >{b}</button>
-                    ))
+                        style={{ cursor: disabled ? 'default' : 'pointer' }}
+                      >
+                        <div className="raid-thumb" style={{ background: img ? `url(${img}) center/cover no-repeat` : 'rgba(var(--accent-rgb),0.06)', position: 'relative' }}>
+                          <div className="raid-thumb-label" style={{
+                            position: 'absolute',
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            padding: '8px 10px',
+                            background: 'rgba(0,0,0,0.7)',
+                            textAlign: 'center',
+                            fontSize: 13,
+                            fontWeight: 700,
+                            color: '#fff',
+                            borderRadius: '0 0 10px 10px',
+                            boxSizing: 'border-box',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                          }}>{instName}</div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* show side bosses only on narrow screens */}
+              {windowWidth < 900 && (
+                <div className="loot-boss-column boss-side" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  {raid && (
+                    <>
+                      <div style={{ marginBottom: 8, fontSize: 15 }}><strong>{t('loot.raid')}:</strong> {raid}</div>
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+                        {bossList.length > 0 ? (
+                          bossList.map(b => {
+                            const img = getBossImageUrl(b)
+                            return (
+                              <button
+                                key={b}
+                                onClick={() => {
+                                  setBoss(b)
+                                  setSelectedItems([])
+                                  setAllocItems([])
+                                  setSuggestions({})
+                                  setSuggestionMeta({})
+                                  setAssignments({})
+                                  setStep(1)
+                                }}
+                                className="boss-select-btn"
+                                style={{ padding: '6px 8px', borderRadius: 6, border: boss === b ? '2px solid #10b981' : '1px solid var(--border)', background: boss === b ? 'rgba(16,185,129,0.06)' : 'transparent', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, boxSizing: 'border-box' }}
+                              >
+                                {img ? (
+                                  <img src={img} alt={b} className="loot-boss-large" draggable={false} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
+                                ) : null}
+                                <span style={{ fontSize: 12, textAlign: 'center', display: 'block', width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b}</span>
+                              </button>
+                            )
+                          })
+                        ) : (
+                          <div>{t('loot.noBoss')}</div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+            {/* show bottom bosses only on wider screens */}
+            {windowWidth >= 900 && raid && (
+              <div className="boss-bottom" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                {/*<div style={{ marginBottom: 8, fontSize: 15 }}><strong>{t('loot.raid')}:</strong> {raid}</div>*/}
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+                  {bossList.length > 0 ? (
+                    bossList.map(b => {
+                      const img = getBossImageUrl(b)
+                      return (
+                        <button
+                          key={b}
+                          onClick={() => {
+                            setBoss(b)
+                            setSelectedItems([])
+                            setAllocItems([])
+                            setSuggestions({})
+                            setSuggestionMeta({})
+                            setAssignments({})
+                            setStep(1)
+                          }}
+                  className="boss-select-btn"
+                  style={{ padding: '6px 8px', borderRadius: 6, border: boss === b ? '2px solid #10b981' : '1px solid var(--border)', background: boss === b ? 'rgba(16,185,129,0.06)' : 'transparent', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, boxSizing: 'border-box' }}
+                        >
+                          {img ? (
+                            <img src={img} alt={b} className="loot-boss-large" draggable={false} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
+                          ) : null}
+                          <span style={{ fontSize: 12, textAlign: 'center', display: 'block', width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b}</span>
+                        </button>
+                      )
+                    })
                   ) : (
                     <div>{t('loot.noBoss')}</div>
                   )}
@@ -797,15 +848,15 @@ export default function Loot() {
                           cursor: 'pointer', padding: 8, borderRadius: 6,
                           border: sel ? '2px solid var(--accent)' : '1px solid var(--border)',
                           display: 'flex', alignItems: 'center', gap: 8,
-                          flex: '1 1 200px',
-                          maxWidth: 260,
+                          flex: '0 0 220px',
+                          maxWidth: 220,
                           minHeight: 56,
                           boxSizing: 'border-box'
                         }}
                       >
                         {it.icon ? <img src={it.icon} alt="" style={{ width: 36, height: 36 }} draggable={false} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} /> : <div style={{ width: 36, height: 36, background: 'var(--panel-bg)', borderRadius: 4 }} />}
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.name}</div>
+                          <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{it.name}</div>
                         </div>
                         {sel && <div style={{ fontSize: 12, fontWeight: 700, color: '#fff', flexShrink: 0, background: 'var(--accent)', borderRadius: '50%', width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{sel.count}</div>}
                       </div>

@@ -257,6 +257,31 @@
   padding:6px 8px;
   border-radius:6px;
   background: rgba(255,255,255,0.02);
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+
+.lh-boss-icon { width: 72px; height: 46px; border-radius:6px; object-fit:cover; flex-shrink:0; }
+
+/* Larger boss image used in Loot control: wider and shorter to match Wowhead style */
+.loot-boss-large { width: 80px; height: 46px; border-radius:8px; object-fit:cover; object-position:center; image-rendering:auto; }
+
+/* Boss button: wider and lower rectangle */
+.boss-select-btn { width: 120px; min-width: 100px; height: 84px; display: inline-flex; align-items: center; justify-content: center; padding: 6px 8px; }
+
+@media (max-width: 900px) {
+  .boss-select-btn { width: 100px; height: 72px; }
+  .loot-boss-large { width: 72px; height: 44px; }
+  .lh-boss-icon { width: 64px; height: 44px; }
+}
+
+@media (max-width: 600px) {
+  .boss-select-btn { width: 88px; height: 64px; }
+  .loot-boss-large { width: 64px; height: 40px; }
+  .lh-boss-icon { width: 52px; height: 36px; }
+  /* ensure enough bottom padding so distribute button is reachable on small screens */
+  .loot-panel { padding-bottom: 260px !important; }
 }
 
 .lh-boss-items{
@@ -265,3 +290,51 @@
   gap:10px;
   width: 100%;
 }
+
+/* Layout helpers for Loot page (raid thumbnails + bosses) */
+.loot-top-row { width: 100%; display: flex; gap: 20px; align-items: flex-start; }
+.loot-raid-column { display: flex; gap: 12px; align-items: flex-start; }
+.loot-boss-column { flex: 1; display: flex; flex-direction: column; align-items: center; }
+
+.raid-thumb {
+  width: 160px;
+  height: 120px;
+  border-radius: 12px;
+  background-position: center;
+  background-size: cover;
+  border: 2px solid var(--muted);
+  box-shadow: none;
+  cursor: pointer;
+  display: inline-block;
+  overflow: hidden;
+}
+.raid-item { display:flex; flex-direction:column; align-items:center; gap:4px; }
+.raid-item.disabled { pointer-events: none; }
+.raid-item.disabled .raid-thumb { filter: grayscale(100%) brightness(0.6); }
+.raid-name { color: var(--muted); font-size: 13px; }
+.raid-thumb-label { font-weight: 700; }
+.raid-item.selected .raid-thumb { border-color: var(--accent); box-shadow: 0 6px 20px rgba(var(--accent-rgb),0.25); }
+.raid-thumb.selected { border-color: var(--accent); box-shadow: 0 6px 20px rgba(var(--accent-rgb),0.25); }
+
+@media (min-width: 1200px) {
+  /* on very wide screens make the raid image larger and use more horizontal space */
+  .raid-thumb { width: 280px; height: 170px; }
+  .loot-panel { max-height: calc(100vh - 80px) !important; }
+}
+
+@media (max-width: 900px) {
+  .raid-thumb { width: 120px; height: 96px; }
+  .loot-top-row { gap: 12px; }
+  /* on small screens show side bosses and hide bottom bosses */
+  .boss-side { display: block !important; }
+  .boss-bottom { display: none !important; }
+}
+
+@media (max-width: 600px) {
+  .raid-thumb { width: 96px; height: 72px; }
+  .loot-panel { padding-bottom: 320px !important; max-height: calc(100vh - 60px) !important; }
+}
+
+/* default visibility: side bosses hidden on large screens */
+.boss-side { display: none !important; }
+.boss-bottom { display: block !important; }

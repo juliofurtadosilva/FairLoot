@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext'
 import Spinner from '../components/Spinner'
 import './LootHistory.scss'
 import { isDemoMode, getDemoLootHistory, removeDemoLootHistory, getDemoWishlistSummary, getDemoCharacters, getDemoGuild, addDemoLootHistory } from '../services/demoData'
+import { getBossImageUrl } from '../services/bossMap'
 
 type LootDrop = {
   id: string
@@ -404,7 +405,12 @@ export default function LootHistory() {
                         }
                         return Array.from(byBoss.entries()).map(([bossName, bossItems]) => (
                           <div key={bossName} className="lh-boss-group">
-                            <div className="lh-boss-header">{bossName}</div>
+                            <div className="lh-boss-header">
+                              {getBossImageUrl(bossName) ? (
+                                <img src={getBossImageUrl(bossName) as string} alt="" className="lh-boss-icon" draggable={false} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
+                              ) : null}
+                              {bossName}
+                            </div>
                             <div className="lh-boss-items">
                               {bossItems.map(d => {
                         const reverted = !!d.isReverted
