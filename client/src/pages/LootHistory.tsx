@@ -278,7 +278,8 @@ export default function LootHistory() {
           assignedTo: alloc.assignedTo,
           boss: alloc.boss,
           difficulty: alloc.difficulty,
-          awardValue: alloc.isSingleUpgrade ? 0 : 1,
+          // award depends on difficulty (normal=0.5, heroic=1.0, mythic=1.5)
+          awardValue: alloc.isSingleUpgrade ? 0 : (alloc.difficulty === 'normal' ? 0.5 : alloc.difficulty === 'mythic' ? 1.5 : 1.0),
           note: '',
           createdAt: new Date().toISOString(),
         }

@@ -56,6 +56,8 @@ const translations = {
   'dash.outdatedTitle': { pt: '⚠️ SimC Desatualizado', en: '⚠️ Outdated SimC' },
   'dash.outdatedDesc': { pt: 'Os seguintes jogadores têm itens com wishlist desatualizada e precisam atualizar seu SimC:', en: 'The following players have items with outdated wishlist and need to update their SimC:' },
   'dash.outdatedItems': { pt: 'itens desatualizados', en: 'outdated items' },
+  'dash.outdatedDay': { pt: 'dia', en: 'day' },
+  'dash.outdatedDays': { pt: 'dias', en: 'days' },
 
   // login
   'login.title': { pt: 'Login', en: 'Login' },
@@ -114,6 +116,8 @@ const translations = {
   'loot.distributeError': { pt: 'Erro ao distribuir', en: 'Error distributing' },
   'loot.note': { pt: 'Observação', en: 'Note' },
   'loot.notePlaceholder': { pt: 'Ex: trade com fulano, item off-spec...', en: 'E.g.: trade with someone, off-spec item...' },
+  'loot.dupOn': { pt: 'Permitindo repetir jogador (clique para desativar)', en: 'Allowing duplicate player (click to disable)' },
+  'loot.dupOff': { pt: 'Clique para permitir repetir jogador neste item', en: 'Click to allow duplicate player for this item' },
 
   // history
   'history.title': { pt: 'Histórico de Loot', en: 'Loot History' },

@@ -4,20 +4,48 @@ import { useApp } from '../context/AppContext'
 import Spinner from '../components/Spinner'
 import { isDemoMode, getDemoWishlistSummary, getDemoCharacters, getDemoGuild, getDemoLootHistory, addDemoLootHistory } from '../services/demoData'
 import { getBossImageUrl } from '../services/bossMap'
+import { getCachedWishlist, setCachedWishlist, WISHLIST_REFRESH_INTERVAL } from '../services/wishlistCache'
+import { getClassNameLocalized, getClassIconUrl, getClassColor } from '../services/classIcons'
 import voidspireImg from '../assets/voidspire.jpg'
 import dreamriftImg from '../assets/dreamrift.jpg'
 import marchImg from '../assets/marchonqueldanas.jpg'
+import './Loot.scss'
 
 type Item = { id?: number | null; name: string; icon?: string }
 type Candidate = { characterName: string; class?: string; itemPercentage: number; overallScore: number; lootReceivedCount: number; lastLootDate?: string; priority: number }
 type SuggestionMeta = { allZeroUpgrade?: boolean; singleUpgradeOnly?: boolean }
+
+function buildRaidMapFromSummary(s: any[]): Record<string, Record<string, Record<string, Item[]>>> {
+  const raidMapLocal: Record<string, Record<string, Record<string, Item[]>>> = {}
+  for (const ch of s) {
+    if (!ch.instances) continue
+    for (const inst of ch.instances) {
+      const instName = inst.name || 'Unknown Instance'
+      if (!raidMapLocal[instName]) raidMapLocal[instName] = {}
+      if (!inst.difficulties) continue
+      for (const d of inst.difficulties) {
+        const diffName = (d.difficulty || '').toLowerCase()
+        if (diffName === '') continue
+        if (!raidMapLocal[instName][diffName]) raidMapLocal[instName][diffName] = {}
+        if (!d.encounters) continue
+        for (const e of d.encounters) {
+          const bossName = e.name || 'Unknown Boss'
+          if (!raidMapLocal[instName][diffName][bossName]) raidMapLocal[instName][diffName][bossName] = []
+          const items = (e.items || []).map((it: any) => ({ id: it.id ?? null, name: it.name, icon: it.icon }))
+          raidMapLocal[instName][diffName][bossName] = raidMapLocal[instName][diffName][bossName].concat(items)
+        }
+      }
+    }
+  }
+  return raidMapLocal
+}
 
 export default function Loot() {
   const [step, setStep] = useState(1)
   const [summary, setSummary] = useState<any[]>([])
   const [difficulty, setDifficulty] = useState<'normal' | 'heroic' | 'mythic' | ''>('')
   const [raid, setRaid] = useState<string>('')
-  const { t } = useApp()
+  const { t, lang } = useApp()
   const [boss, setBoss] = useState<string>('')
   const [availableItems, setAvailableItems] = useState<Item[]>([])
   const [selectedItems, setSelectedItems] = useState<(Item & { count: number })[]>([])
@@ -39,16 +67,34 @@ export default function Loot() {
   const assignToIndex = (index: number, charName: string) => {
     console.log('[assignToIndex] before', { index, charName, assignments, reservedMap })
     const updated = { ...assignments }
-    // clear this person from other indices unless that index is single-upgrade-only
-    Object.keys(updated).forEach(kidx => {
-      const i = Number(kidx)
-      if (i !== index && normalizeName(updated[i]) === normalizeName(charName) && !suggestionMeta[i]?.singleUpgradeOnly) {
-        updated[i] = ''
-      }
-    })
+    const clearedIndices: number[] = []
+    // clear this person from other indices unless that index is single-upgrade-only or allowDuplicate is active
+    if (!allowDuplicateItems.has(index)) {
+      Object.keys(updated).forEach(kidx => {
+        const i = Number(kidx)
+        if (i !== index && normalizeName(updated[i]) === normalizeName(charName) && !suggestionMeta[i]?.singleUpgradeOnly && !allowDuplicateItems.has(i)) {
+          updated[i] = ''
+          clearedIndices.push(i)
+        }
+      })
+    }
     updated[index] = charName || ''
+    // auto-reassign cleared indices to next best available candidate
+    for (const ci of clearedIndices) {
+      const cands = suggestions[ci] || []
+      const upgradeCands = [...cands].filter(c => c.itemPercentage > 0).sort((a, b) => (b.priority - a.priority) || (b.itemPercentage - a.itemPercentage))
+      // collect all currently assigned names (excluding this cleared index)
+      const usedNames = new Set<string>()
+      Object.entries(updated).forEach(([k, v]) => {
+        if (!v || Number(k) === ci) return
+        if (suggestionMeta[Number(k)]?.singleUpgradeOnly) return
+        usedNames.add(normalizeName(v))
+      })
+      const nextBest = upgradeCands.find(c => !usedNames.has(normalizeName(c.characterName)))
+      if (nextBest) updated[ci] = nextBest.characterName
+    }
     setAssignments(updated)
-    // update reserved state by clearing other assignments and updating UI atomically
+    // update reserved state
     const newReserved: Record<string, boolean> = {}
     Object.entries(updated).forEach(([k, v]) => {
       const ki = Number(k)
@@ -68,6 +114,31 @@ export default function Loot() {
   const [initialLoading, setInitialLoading] = useState(true)
   const [itemNotes, setItemNotes] = useState<Record<number, string>>({})
   const [noteOpenIdx, setNoteOpenIdx] = useState<number | null>(null)
+  const [itemNameMap, setItemNameMap] = useState<Record<number, string>>({})
+  const [allowDuplicateItems, setAllowDuplicateItems] = useState<Set<number>>(new Set())
+
+  // Priority color — interpolates from gold (top) to gray (bottom) based on position
+  const getPriorityColor = (position: number, total: number) => {
+    if (total <= 1) return '#FFD700'
+    const t = position / (total - 1)
+    // gold (#FFD700) → gray (#666666)
+    const r = Math.round(255 - t * (255 - 102))
+    const g = Math.round(215 - t * (215 - 102))
+    const b = Math.round(0 + t * (102 - 0))
+    return `rgb(${r},${g},${b})`
+  }
+
+  // Upgrade color — value-based: lower % → gray (#666), higher % → red (#ef4444)
+  const getUpgradeColor = (pct: number, allPcts: number[]) => {
+    const min = Math.min(...allPcts)
+    const max = Math.max(...allPcts)
+    const t = max > min ? (pct - min) / (max - min) : 1
+    // gray (#666666) → red (#ef4444)
+    const r = Math.round(102 + t * (239 - 102))
+    const g = Math.round(102 - t * (102 - 68))
+    const b = Math.round(102 - t * (102 - 68))
+    return `rgb(${r},${g},${b})`
+  }
 
   const computeBosses = (instName: string, diff: string) => {
     const bosses: string[] = []
@@ -94,51 +165,6 @@ export default function Loot() {
   }
 
   useEffect(() => {
-    const WISHLIST_CACHE_KEY = 'fairloot_wishlist_cache'
-    const WISHLIST_CACHE_TTL = 10 * 60 * 1000 // 10 minutes
-
-    const loadCachedWishlist = (): any[] | null => {
-      try {
-        const raw = sessionStorage.getItem(WISHLIST_CACHE_KEY)
-        if (!raw) return null
-        const parsed = JSON.parse(raw)
-        if (parsed.expiry > Date.now() && Array.isArray(parsed.data) && parsed.data.length > 0) return parsed.data
-        sessionStorage.removeItem(WISHLIST_CACHE_KEY)
-      } catch {}
-      return null
-    }
-
-    const saveCachedWishlist = (data: any[]) => {
-      try {
-        sessionStorage.setItem(WISHLIST_CACHE_KEY, JSON.stringify({ data, expiry: Date.now() + WISHLIST_CACHE_TTL }))
-      } catch {}
-    }
-
-    const buildRaidMapFromSummary = (s: any[]) => {
-      const raidMapLocal: Record<string, Record<string, Record<string, Item[]>>> = {}
-      for (const ch of s) {
-        if (!ch.instances) continue
-        for (const inst of ch.instances) {
-          const instName = inst.name || 'Unknown Instance'
-          if (!raidMapLocal[instName]) raidMapLocal[instName] = {}
-          if (!inst.difficulties) continue
-          for (const d of inst.difficulties) {
-            const diffName = (d.difficulty || '').toLowerCase()
-            if (diffName === '') continue
-            if (!raidMapLocal[instName][diffName]) raidMapLocal[instName][diffName] = {}
-            if (!d.encounters) continue
-            for (const e of d.encounters) {
-              const bossName = e.name || 'Unknown Boss'
-              if (!raidMapLocal[instName][diffName][bossName]) raidMapLocal[instName][diffName][bossName] = []
-              const items = (e.items || []).map((it: any) => ({ id: it.id ?? null, name: it.name, icon: it.icon }))
-              raidMapLocal[instName][diffName][bossName] = raidMapLocal[instName][diffName][bossName].concat(items)
-            }
-          }
-        }
-      }
-      return raidMapLocal
-    }
-
     const resolveIconsForSummary = async (data: any[]) => {
       const ids = new Set<number>()
       for (const ch of data) {
@@ -200,11 +226,12 @@ export default function Loot() {
         const isAdminLocal = me.data?.role === 'Admin'
         setIsAdmin(isAdminLocal)
 
-        // try session cache first for instant render
-        const cached = loadCachedWishlist()
+        // show cached data instantly (stale-while-revalidate)
+        const cached = getCachedWishlist()
         if (cached) {
           setSummary(cached)
           setRaidMapState(buildRaidMapFromSummary(cached))
+          setInitialLoading(false)
         }
 
         // fetch wishlists and characters in parallel (always, to get fresh data)
@@ -217,7 +244,7 @@ export default function Loot() {
           const s = wishlistRes.data?.summary || []
           setSummary(s)
           setRaidMapState(buildRaidMapFromSummary(s))
-          if (s.length > 0) saveCachedWishlist(s)
+          if (s.length > 0) setCachedWishlist(s)
         }
 
         if (charsRes) {
@@ -230,6 +257,24 @@ export default function Loot() {
       }
     }
     init()
+  }, [])
+
+  // Background refresh — revalidate wishlist data periodically
+  useEffect(() => {
+    if (isDemoMode()) return
+    const refresh = async () => {
+      try {
+        const res = await api.get('/api/guild/wowaudit/wishlists')
+        const s = res.data?.summary || []
+        if (s.length > 0) {
+          setSummary(s)
+          setRaidMapState(buildRaidMapFromSummary(s))
+          setCachedWishlist(s)
+        }
+      } catch {}
+    }
+    const id = setInterval(refresh, WISHLIST_REFRESH_INTERVAL)
+    return () => clearInterval(id)
   }, [])
 
   const difficulties = ['normal', 'heroic', 'mythic']
@@ -347,6 +392,23 @@ export default function Loot() {
       setAvailableItems([])
     } else setAvailableItems([])
   }, [raid, boss, difficulty, summary])
+
+  // resolve localized item names when available items change
+  useEffect(() => {
+    if (lang === 'en' || availableItems.length === 0) return
+    const ids = availableItems.map(it => it.id).filter((id): id is number => id != null && !itemNameMap[id])
+    const unique = [...new Set(ids)]
+    if (unique.length === 0) return
+    api.post('/api/loot/item-names', { ids: unique, locale: lang === 'pt' ? 'pt_BR' : 'en_US' })
+      .then(res => {
+        const names = res.data as Record<number, string | null>
+        setItemNameMap(prev => {
+          const next = { ...prev }
+          for (const [k, v] of Object.entries(names)) { if (v) next[Number(k)] = v }
+          return next
+        })
+      }).catch(() => {})
+  }, [availableItems, lang])
 
   const onItemClick = (it: Item) => {
     // clicking an item increments its count; if count becomes 2 or more, auto-run suggestions
@@ -542,12 +604,28 @@ export default function Loot() {
         const assignedElsewhere = Object.entries(assignMap).filter(([k, v]) => v && Number(k) !== idx).map(([k, v]) => v)
         console.log('[goSuggest:index]', { idx, itemKeyLocal, groupIndicesLocal, groupPosition, candidates: cand.slice(0,6), assignedElsewhere, assignedPrefill: assignMap[idx], reservedInit: initReserved })
       })
-    } catch (e) {
-      console.error(e)
-    } finally { setLoading(false) }
-  }
+        // resolve localized item names if lang != en
+        if (lang !== 'en') {
+          const ids = payloadUnits.map(u => u.itemId).filter((id): id is number => id != null && !itemNameMap[id])
+          const unique = [...new Set(ids)]
+          if (unique.length > 0) {
+            api.post('/api/loot/item-names', { ids: unique, locale: lang === 'pt' ? 'pt_BR' : 'en_US' })
+              .then(res => {
+                const names = res.data as Record<number, string | null>
+                setItemNameMap(prev => {
+                  const next = { ...prev }
+                  for (const [k, v] of Object.entries(names)) { if (v) next[Number(k)] = v }
+                  return next
+                })
+              }).catch(() => {})
+          }
+        }
+      } catch (e) {
+        console.error(e)
+      } finally { setLoading(false) }
+    }
 
-  const getTransmogStatus = (idx: number) => {
+    const getTransmogStatus = (idx: number) => {
     const meta = suggestionMeta[idx]
     const candidates = suggestions[idx] || []
     const itemKey = getItemKey(allocItems[idx])
@@ -642,7 +720,8 @@ export default function Loot() {
           assignedTo: a.assignedTo,
           boss: a.boss,
           difficulty: a.difficulty,
-          awardValue: a.assignedTo ? 1 : 0,
+          // award depends on difficulty (normal=0.5, heroic=1.0, mythic=1.5)
+          awardValue: (!a.assignedTo || a.isSingleUpgrade) ? 0 : (a.difficulty === 'normal' ? 0.5 : a.difficulty === 'mythic' ? 1.5 : 1.0),
           note: a.note || '',
           createdAt: new Date().toISOString(),
         }))
@@ -668,14 +747,14 @@ export default function Loot() {
 
   return (
     <div className="tab-content">
-      <div className="card tab-card loot-panel" style={{ maxHeight: 'calc(100vh - 120px)', overflowY: 'auto', paddingBottom: 32 }}>
+      <div className="card tab-card loot-panel loot-panel--container">
         {initialLoading && <Spinner size={40} />}
         {!initialLoading && step === 1 && (
-          <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
-            <div className="loot-top-row" style={{ width: '100%', display: 'flex', gap: 20, alignItems: 'flex-start', flexWrap: 'wrap', justifyContent: 'center' }}>
-              <div className="loot-raid-column" style={{ display: 'flex', gap: 12, alignItems: 'flex-start', minWidth: 260 }}>
+          <div className="loot-root">
+            <div className="loot-top-row">
+              <div className="loot-raid-column">
                 {/* Difficulty buttons — vertical */}
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                <div className="difficulty-column">
                   <label style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 2 }}>{t('loot.difficulty')}</label>
                   {['normal', 'heroic', 'mythic'].map(d => (
                     <button
@@ -691,20 +770,11 @@ export default function Loot() {
                         setAssignments({})
                         setStep(1)
                       }}
-                      style={{
-                        padding: '8px 14px',
-                        borderRadius: 8,
-                        border: difficulty === d ? '2px solid var(--accent)' : '1px solid var(--border)',
-                        background: difficulty === d ? 'rgba(var(--accent-rgb),0.08)' : 'transparent',
-                        cursor: 'pointer',
-                        width: 42,
-                        textAlign: 'center',
-                        fontWeight: 600,
-                      }}>{d === 'normal' ? 'N' : d === 'heroic' ? 'H' : 'M'}</button>
+                      className={"difficulty-btn" + (difficulty === d ? ' active' : '')}>{d === 'normal' ? 'N' : d === 'heroic' ? 'H' : 'M'}</button>
                   ))}
                 </div>
 
-                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                <div className="raid-list">
                   {raidList.length === 0 && <div style={{ color: 'var(--muted)' }}>{t('loot.selectDiffToLoad')}</div>}
                   {raidList.map(instName => {
                     const img = getRaidImage(instName)
@@ -838,27 +908,12 @@ export default function Loot() {
                   {availableItems.map((it, i) => {
                     const sel = selectedItems.find(si => si.name === it.name && si.id === it.id)
                       return (
-                      <div
-                        key={i}
-                        onClick={() => onItemClick(it)}
-                        onContextMenu={(e) => onItemRightClick(e, it)}
-                        onMouseDown={e => e.preventDefault()}
-                        style={{
-                          userSelect: 'none', WebkitUserSelect: 'none', MozUserSelect: 'none',
-                          cursor: 'pointer', padding: 8, borderRadius: 6,
-                          border: sel ? '2px solid var(--accent)' : '1px solid var(--border)',
-                          display: 'flex', alignItems: 'center', gap: 8,
-                          flex: '0 0 220px',
-                          maxWidth: 220,
-                          minHeight: 56,
-                          boxSizing: 'border-box'
-                        }}
-                      >
-                        {it.icon ? <img src={it.icon} alt="" style={{ width: 36, height: 36 }} draggable={false} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} /> : <div style={{ width: 36, height: 36, background: 'var(--panel-bg)', borderRadius: 4 }} />}
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{it.name}</div>
+                      <div key={i} className={"item-card" + (sel ? ' selected' : '')} onClick={() => onItemClick(it)} onContextMenu={(e) => onItemRightClick(e, it)} onMouseDown={e => e.preventDefault()}>
+                        {it.icon ? <img src={it.icon} alt="" className="item-icon" draggable={false} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} /> : <div className="item-icon placeholder" />}
+                        <div className="item-body">
+                          <div className="item-name">{(it.id && itemNameMap[it.id]) ? itemNameMap[it.id] : it.name}</div>
                         </div>
-                        {sel && <div style={{ fontSize: 12, fontWeight: 700, color: '#fff', flexShrink: 0, background: 'var(--accent)', borderRadius: '50%', width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{sel.count}</div>}
+                        {sel && <div className="item-count">{sel.count}</div>}
                       </div>
                     )
                   })}
@@ -866,12 +921,8 @@ export default function Loot() {
               </div>
             </div>
 
-            <div style={{ padding: '12px 0 4px', display: 'flex', justifyContent: 'center', width: '100%' }}>
-              <button
-                onClick={() => goSuggest()}
-                disabled={selectedItems.length === 0 || !boss || !difficulty || loading}
-                style={{ padding: '10px 32px', fontSize: 15, borderRadius: 8, border: '1px solid rgba(var(--accent-rgb),0.4)', background: 'rgba(var(--accent-rgb),0.12)' }}
-              >{t('loot.next')}</button>
+            <div className="actions-row">
+              <button className="primary" onClick={() => goSuggest()} disabled={selectedItems.length === 0 || !boss || !difficulty || loading}>{t('loot.next')}</button>
             </div>
           </div>
         )}
@@ -879,10 +930,10 @@ export default function Loot() {
         {!initialLoading && step === 2 && (
           <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 12 }}>
             {loading && suggestions && Object.keys(suggestions).length === 0 && (
-              <Spinner size={36} />
+              <div className="spinner-row"><Spinner size={36} /></div>
             )}
-            <div style={{ maxHeight: 'calc(100vh - 280px)', overflowY: 'auto', padding: '2px' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 10 }}>
+            <div className="suggestions-scroll">
+            <div className="suggestions-grid">
               {allocItems.map((it, idx) => {
                 const allCandidates = suggestions[idx] || []
                 const baseUpgradeCandidates = allCandidates.filter(c => c.itemPercentage > 0)
@@ -911,74 +962,99 @@ export default function Loot() {
                 const visibleUpgrades = singleUpgrade
                   ? baseUpgradeCandidates
                   : baseUpgradeCandidates
-                // sort upgrade candidates locally by itemPercentage then priority for display
-                const sortedUpgrades = [...visibleUpgrades].sort((a, b) => (b.itemPercentage - a.itemPercentage) || (b.priority - a.priority))
+                // sort upgrade candidates by priority (highest first), then by itemPercentage as tiebreaker
+                const sortedUpgrades = [...visibleUpgrades].sort((a, b) => (b.priority - a.priority) || (b.itemPercentage - a.itemPercentage))
                 // show only upgrade candidates in the primary buttons
-                const topCandidates = sortedUpgrades.slice(0, 3)
+                const topCandidates = sortedUpgrades.slice(0, 5)
                 const { isTransmog } = getTransmogStatus(idx)
+                const isAllowDup = allowDuplicateItems.has(idx)
                 return (
-                  <div key={idx} className="card" style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', borderBottom: '1px solid rgba(var(--accent-rgb),0.12)' }}>
-                      {it.icon ? <img src={it.icon} alt="" style={{ width: 28, height: 28, borderRadius: 4, flexShrink: 0 }} draggable={false} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} /> : <div style={{ width: 28, height: 28, background: 'var(--panel-bg)', borderRadius: 4, flexShrink: 0 }} />}
-                      <div style={{ fontSize: 12, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{it.itemName}</div>
+                  <div key={idx} className="card suggestion-card">
+                    <div className="suggestion-header">
+                      {it.icon ? <img src={it.icon} alt="" className="suggestion-icon" draggable={false} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} /> : <div className="suggestion-icon placeholder" />}
+                      <div className="suggestion-title">{(it.itemId && itemNameMap[it.itemId]) ? itemNameMap[it.itemId] : it.itemName}</div>
+                      <button
+                        className={"allow-dup-toggle" + (isAllowDup ? ' active' : '')}
+                        title={isAllowDup ? t('loot.dupOn') : t('loot.dupOff')}
+                        onClick={e => {
+                          e.stopPropagation()
+                          const wasActive = allowDuplicateItems.has(idx)
+                          setAllowDuplicateItems(prev => {
+                            const next = new Set(prev)
+                            if (next.has(idx)) next.delete(idx); else next.add(idx)
+                            return next
+                          })
+                          // when deactivating: if current assignee is also assigned elsewhere, clear and pick next best
+                          if (wasActive && assignments[idx]) {
+                            const currentName = normalizeName(assignments[idx])
+                            const isUsedElsewhere = Object.entries(assignments).some(([k, v]) => {
+                              const ki = Number(k)
+                              return ki !== idx && normalizeName(v) === currentName && !suggestionMeta[ki]?.singleUpgradeOnly
+                            })
+                            if (isUsedElsewhere) {
+                              const updated = { ...assignments }
+                              updated[idx] = ''
+                              const usedNames = new Set<string>()
+                              Object.entries(updated).forEach(([k, v]) => {
+                                if (!v || Number(k) === idx) return
+                                if (suggestionMeta[Number(k)]?.singleUpgradeOnly) return
+                                usedNames.add(normalizeName(v))
+                              })
+                              const cands = suggestions[idx] || []
+                              const sorted = [...cands].filter(c => c.itemPercentage > 0).sort((a, b) => (b.priority - a.priority) || (b.itemPercentage - a.itemPercentage))
+                              const nextBest = sorted.find(c => !usedNames.has(normalizeName(c.characterName)))
+                              if (nextBest) updated[idx] = nextBest.characterName
+                              setAssignments(updated)
+                              const newReserved: Record<string, boolean> = {}
+                              Object.entries(updated).forEach(([k, v]) => {
+                                const ki = Number(k)
+                                if (!v) return
+                                if (suggestionMeta[ki]?.singleUpgradeOnly) return
+                                newReserved[normalizeName(v)] = true
+                              })
+                              setReservedMap(newReserved)
+                            }
+                          }
+                        }}
+                      />
                     </div>
                     {isTransmog && (
                       <div style={{ color: 'var(--color-transmog)', fontWeight: 700, fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', textAlign: 'center', padding: '4px 0' }}>TRANSMOG</div>
                     )}
                     {!isTransmog && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 5, flex: 1 }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          {topCandidates.map((c: any) => {
+                      <div className="suggestion-body">
+                        <div className="candidates-list">
+                          {topCandidates.map((c: any, cIdx: number) => {
                             const isSelected = normalizeName(assignments[idx]) === normalizeName(c.characterName)
-                            const classLabel = c.class ? ` (${c.class})` : ''
-                            const isAssignedElsewhere = assignedElsewhereFromOthers.has(normalizeName(c.characterName)) && !isSelected
-                            return (
-                              <button
-                                key={c.characterName}
-                                onClick={() => assignToIndex(idx, c.characterName)}
-                                title={`Upgrade: ${Number(c.itemPercentage).toFixed(1)}% | Score: ${Number(c.overallScore).toFixed(1)} | Itens recebidos (30d): ${c.lootReceivedCount} | Priority: ${Number(c.priority).toFixed(3)}${isAssignedElsewhere ? ' | Selecionado em outro item' : ''}`}
-                                style={{
-                                  padding: '6px 10px',
-                                  borderRadius: 6,
-                                  fontSize: 11,
-                                  border: isSelected ? '2px solid var(--color-yellow)' : (isAssignedElsewhere ? '2px solid rgba(239,68,68,0.95)' : '1px solid var(--border)'),
-                                  background: isSelected ? 'rgba(var(--accent-rgb),0.10)' : (isAssignedElsewhere ? 'rgba(239,68,68,0.04)' : 'transparent'),
-                                  opacity: 1,
-                                  textAlign: 'left',
-                                  transition: 'border-color 0.2s, background 0.2s',
-                                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                                  cursor: 'pointer'
-                                }}
-                              >
-                                <span style={{ fontWeight: 600 }}>{c.characterName}{classLabel}</span>
-                                <span style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
-                                  {isAssignedElsewhere && (
-                                    <span style={{ fontSize: 11, fontWeight: 700, color: 'rgb(239 68 68)', background: 'rgba(239,68,68,0.06)', padding: '2px 6px', borderRadius: 6 }}>
-                                      Selecionado
-                                    </span>
-                                  )}
-                                  <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', background: 'rgba(var(--accent-rgb),0.06)', padding: '2px 6px', borderRadius: 6 }}>
-                                    ⬆{Number(c.itemPercentage).toFixed(1)}%
-                                  </span>
-                                  <span style={{ fontSize: 11, fontWeight: 700, color: '#fff', background: 'rgba(0,0,0,0.25)', padding: '2px 6px', borderRadius: 6 }}>
-                                    P:{Number(c.priority * 100).toFixed(0)}
-                                  </span>
+                            const classIcon = getClassIconUrl(c.class)
+                            const classColor = getClassColor(c.class)
+                            const isAssignedElsewhere = !isAllowDup && assignedElsewhereFromOthers.has(normalizeName(c.characterName)) && !isSelected
+                            const prioColor = getPriorityColor(cIdx, topCandidates.length)
+                            const allPcts = topCandidates.map((x: any) => Number(x.itemPercentage))
+                            const upgrColor = getUpgradeColor(Number(c.itemPercentage), allPcts)
+                              return (
+                              <button key={c.characterName} className={"candidate-btn" + (isSelected ? ' selected' : '') + (isAssignedElsewhere ? ' assigned-elsewhere' : '')} onClick={() => assignToIndex(idx, c.characterName)} title={`Upgrade: ${Number(c.itemPercentage).toFixed(2)}% | Score: ${Number(c.overallScore).toFixed(2)} | Itens recebidos (30d): ${c.lootReceivedCount} | Priority: ${Number(c.priority).toFixed(4)}${isAssignedElsewhere ? ' | Selecionado em outro item' : ''}`}>
+                                {isAssignedElsewhere && (<span className="badge badge-assigned">Já selecionado</span>)}
+                                <span className="candidate-name">
+                                  {classIcon && <img src={classIcon} alt="" className="candidate-class-icon" />}
+                                  <span style={{ color: classColor }}>{c.characterName}</span>
+                                  {isSelected && <span className="badge badge-selected">✓</span>}
+                                </span>
+                                <span className="candidate-meta">
+                                  <span className="badge badge-upgrade" style={{ color: upgrColor }}>⬆{Number(c.itemPercentage).toFixed(2)}%</span>
+                                  <span className="badge badge-priority" style={{ color: prioColor }}>P:{Math.round(c.priority * 100)}</span>
                                 </span>
                               </button>
                             )
                           })}
                         </div>
-                        {sortedUpgrades.length > 3 && (
-                          <select
-                            value={assignments[idx] || ''}
-                            onChange={e => assignToIndex(idx, e.target.value)}
-                            style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--select-bg)', color: 'var(--text)', fontSize: 11, width: '100%', marginTop: 2 }}
-                          >
+                        {sortedUpgrades.length > 5 && (
+                          <select className="candidate-select" value={assignments[idx] || ''} onChange={e => assignToIndex(idx, e.target.value)}>
                             <option value="">{t('loot.choose')}</option>
                             {sortedUpgrades.slice(0, 12).map((c) => {
-                              const classLabel = c.class ? ` (${c.class})` : ''
+                              const classLabel = c.class ? ` (${getClassNameLocalized(c.class, lang)})` : ''
                               return (
-                                <option key={c.characterName} value={c.characterName}>{c.characterName}{classLabel} — ⬆{Number(c.itemPercentage).toFixed(1)}% · P:{Number(c.priority * 100).toFixed(0)}</option>
+                                <option key={c.characterName} value={c.characterName}>{c.characterName}{classLabel} — ⬆{Number(c.itemPercentage).toFixed(2)}% · P:{Math.round(c.priority * 100)}</option>
                               )
                             })}
                           </select>

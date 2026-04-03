@@ -3,6 +3,7 @@ import api from '../services/api'
 import { useApp } from '../context/AppContext'
 import Spinner from '../components/Spinner'
 import { isDemoMode, getDemoWishlistSummary } from '../services/demoData'
+import { getCachedWishlist, setCachedWishlist } from '../services/wishlistCache'
 
 type Encounter = {
   name: string
@@ -102,16 +103,29 @@ export default function Wishlist() {
     } catch { return data }
   }
 
-  const fetchData = async () => {
+  // fetchData optionally forces a fresh pull from WowAudit when `force` is true
+  const fetchData = async (force = false) => {
     try {
       if (isDemoMode()) {
         let data = getDemoWishlistSummary()
         setList(data)
         // resolve icons asynchronously
-        resolveIconsForSummary(data).then(updated => setList(updated)).catch(() => {})
+        resolveIconsForSummary(data).then(updated => {
+          setList(updated)
+          try { window.dispatchEvent(new CustomEvent('fairloot:wishlist:updated', { detail: updated })) } catch {}
+        }).catch(() => {})
       } else {
-        const r = await api.get('/api/guild/wowaudit/wishlists')
-        setList(r.data?.summary || [])
+        // show cached data instantly while fetching fresh
+        const cached = getCachedWishlist()
+        if (cached && cached.length > 0) {
+          setList(cached as CharSummary[])
+          setInitialLoading(false)
+        }
+        const r = await api.get('/api/guild/wowaudit/wishlists', { params: { force } })
+        const summary = r.data?.summary || []
+        setList(summary)
+        if (summary.length > 0) setCachedWishlist(summary)
+        try { window.dispatchEvent(new CustomEvent('fairloot:wishlist:updated', { detail: summary })) } catch {}
       }
     } catch (err: any) {
       setError(err?.response?.data || t('wishlist.error'))

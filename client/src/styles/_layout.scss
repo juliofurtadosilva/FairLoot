@@ -70,36 +70,45 @@ body {
   color: var(--text);
   margin: 0;
   background-attachment: fixed;
+  /* allow the main container to handle scrolling; avoid global hidden overflow which can cause double scrollbars */
   overflow: hidden;
 }
 
 .container {
-    margin: 0 3% 3vh;
+    margin: 0 3%;
     width: 94%;
-    height: calc(100vh - 3vh);
+    flex: 1 1 0;
+    min-height: 0;
     padding: 20px;
     display: flex;
     flex-direction: column;
     background: linear-gradient(180deg, var(--surface), var(--surface-end));
     border-radius: v.$radius;
     box-shadow: 0 8px 32px rgba(0,0,0,0.18);
-    overflow: hidden;
+    /* single scroll container for all page content */
+    overflow-y: auto;
+    overflow-x: hidden;
+    margin-bottom: 8px;
 }
 
 .control-shell {
-  min-height: 100vh;
-  padding: 24px 0 0;
+  height: 100vh;
+  padding: 8px 0 0;
   display: flex;
   flex-direction: column;
   align-items: center;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .container > main {
-  flex: 1;
-  overflow: auto;
+  flex: 1 1 auto;
+  overflow: visible;
   display: flex;
   flex-direction: column;
   align-items: center;
+  /* spacing at bottom so content is not cut when scrolling to end */
+  padding-bottom: 48px;
 }
 
 nav {
@@ -188,7 +197,6 @@ nav {
 
 .tab-content {
   width: 100%;
-  height: 100%;
   display: flex;
   justify-content: center;
   align-items: flex-start;

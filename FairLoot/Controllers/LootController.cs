@@ -20,6 +20,19 @@ namespace FairLoot.Controllers
             _wow = wow;
         }
 
+        // map difficulty string to award multiplier
+        private static double AwardForDifficulty(string difficulty)
+        {
+            if (string.IsNullOrEmpty(difficulty)) return 1.0;
+            switch (difficulty.Trim().ToLowerInvariant())
+            {
+                case "normal": return 0.5;
+                case "heroic": return 1.0;
+                case "mythic": return 1.5;
+                default: return 1.0;
+            }
+        }
+
         // GET api/loot/history
         [HttpGet("history")]
         public async Task<IActionResult> History()
@@ -224,7 +237,12 @@ namespace FairLoot.Controllers
                 // transmog items (empty AssignedTo) get award 0
                 // single upgrade items (only 1 candidate wanted) get award 0 (no competition)
                 var isTransmog = string.IsNullOrEmpty(alloc.AssignedTo);
-                double award = (isTransmog || alloc.IsSingleUpgrade) ? 0 : 1.0;
+                // award depends on difficulty: normal=0.5, heroic=1.0, mythic=1.5
+                double award = 0;
+                if (!isTransmog && !alloc.IsSingleUpgrade)
+                {
+                    award = AwardForDifficulty(alloc.Difficulty);
+                }
 
                 var drop = new Domain.LootDrop
                 {
@@ -243,7 +261,7 @@ namespace FairLoot.Controllers
                 _context.LootDrops.Add(drop);
 
                 // update character score in DB (add award)
-                if (!isTransmog)
+                if (!isTransmog && !string.IsNullOrEmpty(alloc.AssignedTo))
                 {
                     var chDb = await _context.Characters.FirstOrDefaultAsync(c => c.GuildId == user.GuildId && c.Name == alloc.AssignedTo);
                     if (chDb != null)
@@ -256,6 +274,45 @@ namespace FairLoot.Controllers
             await _context.SaveChangesAsync();
 
             return Ok(new { distributed = drops.Count });
+        }
+
+        // POST api/loot/recalculate-scores
+        // Admin endpoint to recompute all character scores from loot history using current award multipliers
+        [HttpPost("recalculate-scores")]
+        public async Task<IActionResult> RecalculateScores()
+        {
+            var (user, error) = await GetAuthenticatedAdminAsync(_context);
+            if (error != null) return error;
+
+            // reset all character scores to 0 for this guild
+            var chars = await _context.Characters.Where(c => c.GuildId == user!.GuildId).ToListAsync();
+            foreach (var c in chars) c.Score = 0;
+
+            // consider all non-reverted loot drops for this guild
+            var drops = await _context.LootDrops
+                .Where(d => d.GuildId == user.GuildId && !d.IsReverted && !string.IsNullOrEmpty(d.AssignedTo))
+                .ToListAsync();
+
+            // use stored AwardValue on each drop so single-upgrade/transmog entries (which have AwardValue=0)
+            // are respected instead of recomputing from Difficulty
+            foreach (var d in drops)
+            {
+                // if the drop has a positive award (was counted previously), update its AwardValue
+                // to reflect the new difficulty multipliers
+                if (d.AwardValue > 0)
+                {
+                    d.AwardValue = AwardForDifficulty(d.Difficulty);
+                }
+                var award = d.AwardValue;
+                var ch = chars.FirstOrDefault(c => string.Equals(c.Name, d.AssignedTo, StringComparison.OrdinalIgnoreCase));
+                if (ch != null)
+                {
+                    ch.Score += award;
+                }
+            }
+
+            await _context.SaveChangesAsync();
+            return Ok(new { recalculated = chars.Count, dropsConsidered = drops.Count });
         }
 
         // POST api/loot/icons — resolve item icon URLs (no auth required)

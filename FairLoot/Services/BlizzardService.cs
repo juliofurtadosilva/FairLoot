@@ -128,6 +128,31 @@ namespace FairLoot.Services
                 .Replace(" ", "-");
         }
 
+        /// <summary>Get localized item name from Blizzard API.</summary>
+        public async Task<string?> GetItemNameAsync(int itemId, string locale = "en_US")
+        {
+            if (!HasCredentials()) return null;
+            if (!await EnsureTokenAsync()) return null;
+            try
+            {
+                var url = $"https://us.api.blizzard.com/data/wow/item/{itemId}?namespace=static-us&locale={locale}";
+                var req = new HttpRequestMessage(HttpMethod.Get, url);
+                req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _accessToken);
+                var res = await _http.SendAsync(req);
+                if (!res.IsSuccessStatusCode) return null;
+                var txt = await res.Content.ReadAsStringAsync();
+                using var doc = JsonDocument.Parse(txt);
+                if (doc.RootElement.TryGetProperty("name", out var nameEl) && nameEl.ValueKind == JsonValueKind.String)
+                    return nameEl.GetString();
+                return null;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Failed to fetch item name for {ItemId} locale {Locale}", itemId, locale);
+                return null;
+            }
+        }
+
         private static string RegionHost(string region) => region switch
         {
             "eu" => "eu.api.blizzard.com",

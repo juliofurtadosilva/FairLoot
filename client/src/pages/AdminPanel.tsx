@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react'
 import api from '../services/api'
 import { useApp } from '../context/AppContext'
 import { isDemoMode, getDemoGuild, saveDemoGuild, getDemoCharacters, toggleDemoNewPlayer } from '../services/demoData'
+import { getClassIconUrl, getClassNameLocalized } from '../services/classIcons'
 
 const classColors: Record<string, string> = {
   'death knight': '#C41E3A',
@@ -31,7 +32,7 @@ export default function AdminPanel() {
   const [form, setForm] = useState<any>({})
   const [search, setSearch] = useState('')
   const [showHelp, setShowHelp] = useState(false)
-  const { t } = useApp()
+  const { t, lang } = useApp()
 
   const fetchData = async () => {
     try {
@@ -212,21 +213,25 @@ export default function AdminPanel() {
                   style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid rgba(var(--accent-rgb),0.3)', background: 'var(--input-bg)', color: 'var(--text)', fontSize: 12, width: 180 }}
                 />
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 6, maxHeight: 'calc(100vh - 520px)', overflowY: 'auto' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 6 }}>
                 {filtered.length === 0 && <div style={{ color: 'var(--muted)', fontSize: 13, gridColumn: '1 / -1', textAlign: 'center', padding: 16 }}>{t('admin.noChar')}</div>}
-                {filtered.map((c, i) => (
+                {filtered.map((c, i) => {
+                  const classIcon = getClassIconUrl(c.class)
+                  const className = getClassNameLocalized(c.class, lang)
+                  return (
                   <div key={i} style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '8px 12px', borderRadius: 6,
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    padding: '8px 10px', borderRadius: 6,
                     background: 'var(--panel-bg)', border: c.isNewPlayer ? '1px solid rgba(250,204,21,0.4)' : '1px solid var(--border)',
                   }}>
-                    <div style={{ minWidth: 0 }}>
+                    {classIcon && <img src={classIcon} alt={className} style={{ width: 24, height: 24, borderRadius: 4, flexShrink: 0 }} draggable={false} />}
+                    <div style={{ minWidth: 0, flex: 1 }}>
                       <div style={{ fontSize: 13, fontWeight: 600, color: getClassColor(c.class), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</div>
-                      <div style={{ fontSize: 10, color: 'var(--muted)' }}>{c.class || '—'}</div>
+                      <div style={{ fontSize: 10, color: 'var(--muted)' }}>{className}</div>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, marginLeft: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                       <div style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'right' }}>
-                        <div style={{ fontWeight: 600 }}>{Number(c.score).toFixed(0)}</div>
+                        <div style={{ fontWeight: 600 }}>{Number(c.score).toFixed(1)}</div>
                         <div style={{ fontSize: 9, color: 'var(--muted)' }}>{t('admin.score')}</div>
                       </div>
                       <button
@@ -249,11 +254,12 @@ export default function AdminPanel() {
                           color: c.isNewPlayer ? '#facc15' : 'var(--muted)',
                           cursor: 'pointer', lineHeight: 1.4,
                         }}
-                      >{t('admin.newPlayer')}</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                               >{t('admin.newPlayer')}</button>
+                            </div>
+                          </div>
+                          )
+                        })}
+                      </div>
             </div>
           </div>
         ) : (

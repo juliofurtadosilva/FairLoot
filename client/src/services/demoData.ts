@@ -100,6 +100,20 @@ export const getDemoLootHistory = (): any[] => {
   } catch { return [] }
 }
 
+// recompute demo characters' scores based on demo loot history using difficulty multipliers
+export const recomputeDemoScores = () => {
+  const drops = getDemoLootHistory().filter(d => d.assignedTo && !d.isReverted)
+  const chars = getDemoCharacters()
+  const scores: Record<string, number> = {}
+  for (const c of chars) scores[c.name] = 0
+  for (const d of drops) {
+    const award = (!d.assignedTo || d.isSingleUpgrade) ? 0 : (d.difficulty === 'normal' ? 0.5 : d.difficulty === 'mythic' ? 1.5 : 1.0)
+    if (d.assignedTo) scores[d.assignedTo] = (scores[d.assignedTo] || 0) + award
+  }
+  // merge scores back
+  return chars.map(c => ({ ...c, score: scores[c.name] || 0 }))
+}
+
 export const addDemoLootHistory = (drops: any[]) => {
   const current = getDemoLootHistory()
   const updated = [...drops, ...current]
@@ -149,21 +163,38 @@ export const saveDemoGuild = (guild: any) => {
 }
 
 // Analyze wishlist for outdated items per character
-export const getOutdatedWarnings = (): { name: string; count: number }[] => {
+export const getOutdatedWarnings = (): { name: string; count: number; lastOutdatedTs?: number; className?: string }[] => {
   const raw = getDemoWishlistRaw()
   const characters = raw.characters || []
-  const warnings: { name: string; count: number }[] = []
+  const charLookup = getDemoCharacters()
+  const classLookup: Record<string, string> = {}
+  charLookup.forEach((c: any) => { if (c.class) classLookup[c.name] = c.class })
+  const warnings: { name: string; count: number; lastOutdatedTs?: number; className?: string }[] = []
 
   for (const c of characters) {
     let outdatedCount = 0
+    let latestTs: number | undefined
     for (const inst of (c.instances || [])) {
       for (const diff of (inst.difficulties || [])) {
         const wl = diff.wishlist || {}
+        // consider wishlist-level timestamps if present
+        if (wl.updated_at) {
+          for (const tsVal of Object.values(wl.updated_at)) {
+            if (tsVal) {
+              const ts = new Date(tsVal as string).getTime()
+              if (!isNaN(ts)) latestTs = Math.max(latestTs || 0, ts)
+            }
+          }
+        }
         for (const enc of (wl.encounters || [])) {
           for (const item of (enc.items || [])) {
             for (const wish of (item.wishes || [])) {
               if (wish.outdated && wish.outdated.old && wish.outdated.new) {
                 outdatedCount++
+                if (wish.timestamp) {
+                  const ts = new Date(wish.timestamp).getTime()
+                  if (!isNaN(ts)) latestTs = Math.max(latestTs || 0, ts)
+                }
               }
             }
           }
@@ -171,7 +202,7 @@ export const getOutdatedWarnings = (): { name: string; count: number }[] => {
       }
     }
     if (outdatedCount > 0) {
-      warnings.push({ name: c.name, count: outdatedCount })
+      warnings.push({ name: c.name, count: outdatedCount, lastOutdatedTs: latestTs, className: classLookup[c.name] })
     }
   }
 

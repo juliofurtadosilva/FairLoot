@@ -142,7 +142,23 @@ namespace FairLoot.Controllers
             if (string.IsNullOrEmpty(apiKey))
                 return BadRequest("Wowaudit API key não configurada para esta guild.");
 
+            // fetch both the structured summary and the raw JSON (raw can contain extra metadata such as
+            // per-wish 'outdated' flags which some clients rely on)
             var summary = await _wow.GetGuildWishlistSummaryAsync(apiKey, force);
+            string? rawJson = null;
+            try
+            {
+                rawJson = await _wow.GetRawWishlistJson(apiKey);
+            }
+            catch
+            {
+                rawJson = null;
+            }
+            object? rawObj = null;
+            if (!string.IsNullOrEmpty(rawJson))
+            {
+                try { rawObj = JsonSerializer.Deserialize<object>(rawJson); } catch { rawObj = null; }
+            }
 
             // if WowAudit returned data, save to DB cache for future cold starts
             if (summary.Count > 0)
@@ -190,7 +206,7 @@ namespace FairLoot.Controllers
                     ch.Class = cls;
             }
 
-            return Ok(new { summary });
+            return Ok(new { summary, raw = rawObj });
         }
 
         // PUT api/guild

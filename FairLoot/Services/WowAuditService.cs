@@ -14,8 +14,9 @@ namespace FairLoot.Services
         private readonly ILogger<WowAuditService> _logger;
         private string? _lastRawWishlistJson;
         private static readonly ConcurrentDictionary<int, (string? Url, DateTime CachedAt)> _wowheadIconCache = new();
+        private static readonly ConcurrentDictionary<string, string?> _itemNameCache = new();
             private static readonly ConcurrentDictionary<string, (DateTime Expiry, List<DTOs.CharacterWishlistSummary> Data)> _wishlistSummaryCache = new();
-            private static readonly TimeSpan _wishlistCacheTtl = TimeSpan.FromMinutes(30);
+            private static readonly TimeSpan _wishlistCacheTtl = TimeSpan.FromMinutes(5);
             private static readonly TimeSpan _iconNullCacheTtl = TimeSpan.FromHours(2);
             private static readonly SemaphoreSlim _iconSemaphore = new(5, 5);
         private readonly BlizzardService? _blizzard;
