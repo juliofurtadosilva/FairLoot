@@ -1,0 +1,85 @@
+.modal-overlay{
+  position:fixed;
+  inset:0;
+  z-index:9999;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:rgba(0,0,0,0.55);
+  backdrop-filter:blur(4px);
+  animation:modal-fade-in .15s ease;
+}
+
+.modal-box{
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:12px;
+  box-shadow:0 8px 40px rgba(0,0,0,0.4);
+  padding:24px 28px;
+  min-width:280px;
+  max-width:420px;
+  width:90vw;
+  display:flex;
+  flex-direction:column;
+  gap:18px;
+  animation:modal-slide-in .15s ease;
+}
+
+.modal-message{
+  font-size:14px;
+  color:var(--text);
+  text-align:center;
+  line-height:1.5;
+  word-break:break-word;
+}
+
+.modal-actions{
+  display:flex;
+  gap:10px;
+  justify-content:center;
+}
+
+.modal-btn{
+  padding:8px 22px;
+  border-radius:8px;
+  font-size:13px;
+  font-weight:600;
+  cursor:pointer;
+  transition:opacity .15s, background .15s;
+  &:hover{ opacity:0.85; }
+}
+
+.modal-btn--confirm{
+  background:rgba(var(--accent-rgb),0.18);
+  border:1px solid rgba(var(--accent-rgb),0.4);
+  color:var(--accent);
+}
+
+.modal-btn--cancel{
+  background:var(--panel-bg);
+  border:1px solid var(--border);
+  color:var(--muted);
+}
+
+.modal-btn--ok{
+  background:rgba(var(--accent-rgb),0.18);
+  border:1px solid rgba(var(--accent-rgb),0.4);
+  color:var(--accent);
+  min-width:100px;
+}
+
+.modal-btn--danger{
+  background:rgba(239,68,68,0.12);
+  border:1px solid rgba(239,68,68,0.4);
+  color:#ef4444;
+}
+
+@keyframes modal-fade-in{
+  from{ opacity:0 }
+  to{ opacity:1 }
+}
+
+@keyframes modal-slide-in{
+  from{ transform:scale(0.95) translateY(-8px); opacity:0 }
+  to{ transform:scale(1) translateY(0); opacity:1 }
+}

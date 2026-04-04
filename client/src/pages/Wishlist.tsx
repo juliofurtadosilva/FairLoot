@@ -2,8 +2,11 @@ import React, { useEffect, useState, useMemo } from 'react'
 import api from '../services/api'
 import { useApp } from '../context/AppContext'
 import Spinner from '../components/Spinner'
-import { isDemoMode, getDemoWishlistSummary } from '../services/demoData'
+import { isDemoMode, getDemoWishlistSummary, getDemoGuild } from '../services/demoData'
 import { getCachedWishlist, setCachedWishlist } from '../services/wishlistCache'
+import { getClassColor, getClassIconUrl } from '../services/classIcons'
+import EmptyState from '../components/EmptyState'
+import './Wishlist.scss'
 
 type Encounter = {
   name: string
@@ -16,6 +19,7 @@ type Difficulty = {
   difficulty: string
   totalPercentage: number
   totalAbsolute: number
+  hasSimcReport?: boolean
   encounters: Encounter[]
 }
 
@@ -36,27 +40,6 @@ type CharSummary = {
 const diffOrder: Record<string, number> = { mythic: 0, heroic: 1, normal: 2 }
 const orderedDiffs = ['normal', 'heroic', 'mythic']
 
-const classColors: Record<string, string> = {
-  'death knight': '#C41E3A',
-  'demon hunter': '#A330C9',
-  'druid': '#FF7C0A',
-  'evoker': '#33937F',
-  'hunter': '#AAD372',
-  'mage': '#3FC7EB',
-  'monk': '#00FF98',
-  'paladin': '#F48CBA',
-  'priest': '#FFFFFF',
-  'rogue': '#FFF468',
-  'shaman': '#0070DD',
-  'warlock': '#8788EE',
-  'warrior': '#C69B6D',
-}
-
-const getClassColor = (cls?: string) => {
-  if (!cls) return '#e8edff'
-  return classColors[cls.toLowerCase()] ?? '#e8edff'
-}
-
 export default function Wishlist() {
   const [list, setList] = useState<CharSummary[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -64,7 +47,9 @@ export default function Wishlist() {
   const [expandedChars, setExpandedChars] = useState<Set<string>>(new Set())
   const [selectedRaid, setSelectedRaid] = useState<string>('')
   const [initialLoading, setInitialLoading] = useState(true)
-  const { t } = useApp()
+  // simc filter removed from Wishlist — controlled in Dashboard
+  // guild/characters removed: iLevel logic was cancelled
+  const { t, theme } = useApp()
 
   const resolveIconsForSummary = async (data: CharSummary[]) => {
     const ids = new Set<number>()
@@ -136,6 +121,8 @@ export default function Wishlist() {
 
   useEffect(() => { fetchData() }, [])
 
+  // iLevel indicators were removed per request — no guild/character iLevel fetch needed
+
   const raids = useMemo(() => {
     const set = new Set<string>()
     for (const c of list) {
@@ -180,27 +167,41 @@ export default function Wishlist() {
     return 'var(--muted)'
   }
 
+  // check if a character has SimC report for a given difficulty
+  const hasSimcForDiff = (c: CharSummary, diff: string): boolean => {
+    if (!c.instances) return false
+    for (const inst of c.instances) {
+      for (const d of inst.difficulties) {
+        if (d.difficulty.toLowerCase() === diff && d.hasSimcReport) return true
+      }
+    }
+    return false
+  }
+
+  // utility: normalize character name for lookup (remove diacritics, trim, lowercase)
+  const stripName = (s: string) => (s || '').toString().normalize('NFD').replace(/\p{Diacritic}/gu, '').trim().toLowerCase()
+
+  // iLevel lookup removed
+
+  // noop: simc filter handled in Dashboard
+
   return (
     <div className="tab-content">
       <div className="card tab-card wishlist-card" style={{ padding: '24px 20px', gap: 14 }}>
-        <h3 style={{ margin: 0, textAlign: 'center', fontSize: 18 }}>{t('wishlist.title')}</h3>
+        <h3 className="wishlist-title">{t('wishlist.title')}</h3>
 
-        {error && <div style={{ color: '#f97316', textAlign: 'center' }}>{error}</div>}
+        {error && <div className="wishlist-error">{error}</div>}
 
         {initialLoading && <Spinner size={40} />}
         {!initialLoading && (
         <>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center', width: '100%' }}>
+        <div className="wishlist-toolbar">
           <input
             type="text"
             placeholder={t('wishlist.search')}
             value={search}
             onChange={e => setSearch(e.target.value)}
-            style={{
-              flex: '1 1 200px', maxWidth: 300, padding: '8px 12px', borderRadius: 8,
-              border: '1px solid rgba(var(--accent-rgb),0.3)', background: 'var(--input-bg)',
-              color: 'var(--text)', fontSize: 14, outline: 'none',
-            }}
+            className="wishlist-search"
           />
           <button
             onClick={() => {
@@ -208,63 +209,72 @@ export default function Wishlist() {
               setInitialLoading(true);
               fetchData(true);
             }}
-            style={{
-              padding: '8px 16px', borderRadius: 8, border: '1px solid var(--accent)',
-              background: 'rgba(var(--accent-rgb),0.10)', color: 'var(--accent)', fontWeight: 600,
-              fontSize: 13, cursor: 'pointer', minWidth: 80
-            }}
+            className="wishlist-refresh-btn"
           >🔄 Atualizar wishlist</button>
           {raids.length > 1 && (
             <select
               value={selectedRaid}
               onChange={e => setSelectedRaid(e.target.value)}
-              style={{
-                padding: '8px 12px', borderRadius: 8,
-                border: '1px solid var(--border)', background: 'var(--select-bg)',
-                color: 'var(--text)', fontSize: 13,
-              }}
+              className="wishlist-raid-select"
             >
               <option value="">{t('wishlist.allRaids')}</option>
               {raids.map(r => <option key={r} value={r}>{r}</option>)}
             </select>
           )}
+          <div className="wishlist-simc-toggles">
+            <span className="wishlist-simc-label">SimC:</span>
+            {orderedDiffs.map(d => (
+              <button
+                key={d}
+                className={`wishlist-simc-btn ${simcDiffs.has(d) ? 'active' : ''}`}
+                style={{ borderColor: simcDiffs.has(d) ? diffColor(d) : undefined }}
+                onClick={() => toggleSimcDiff(d)}
+                title={`SimC ${d}`}
+              >
+                {d.charAt(0).toUpperCase()}
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div style={{ color: 'var(--muted)', fontSize: 11, textAlign: 'center' }}>
+        <div className="wishlist-count">
           {filtered.length} {filtered.length !== 1 ? t('wishlist.players') : t('wishlist.player')}
         </div>
 
         {/* Character list */}
-        <div className="wishlist-scroll" style={{ width: '100%', maxHeight: 'calc(100vh - 300px)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {filtered.length === 0 && <div style={{ textAlign: 'center', color: 'var(--muted)', padding: 20 }}>{t('wishlist.noPlayer')}</div>}
+        <div className="wishlist-list">
+          {filtered.length === 0 && <EmptyState icon="🔍" message={t('wishlist.noPlayer')} />}
           {filtered.map((c, idx) => {
             const isExpanded = expandedChars.has(c.name)
             const charInstances = getInstancesForChar(c)
-            const nameColor = getClassColor(c.class)
+            const nameColor = getClassColor(c.class, theme)
+            const nameKey = stripName(c.name || '')
 
             return (
-              <div key={idx} style={{
-                border: '1px solid var(--border)',
-                borderRadius: 8,
-                background: isExpanded ? 'rgba(var(--accent-rgb),0.05)' : 'var(--surface)',
-                transition: 'background 0.2s',
-              }}>
+              <div key={idx} className={`wishlist-char ${isExpanded ? 'wishlist-char--expanded' : ''}`}>
                 {/* Header row */}
-                <div
-                  onClick={() => toggleChar(c.name)}
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '8px 14px', cursor: 'pointer', userSelect: 'none',
-                    gap: 8,
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                    <span style={{ fontSize: 9, color: 'var(--muted)', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0)' }}>▶</span>
-                    <strong style={{ fontSize: 13, color: nameColor, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</strong>
+                <div className="wishlist-char-header" onClick={() => toggleChar(c.name)}>
+                  <div className="wishlist-char-left">
+                    <span className="wishlist-expand-arrow" style={{ transform: isExpanded ? 'rotate(90deg)' : 'rotate(0)' }}>▶</span>
+                    <strong className="wishlist-char-name class-color-text" style={{ color: nameColor }}>{c.name}</strong>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-                    <span style={{ fontSize: 11, color: 'var(--muted)' }}>{c.realm}</span>
-                    <span style={{ fontSize: 11, fontWeight: 600, color: percColor(c.overallPercentage) }}>
+                  <div className="wishlist-char-right">
+                    {/* iLevel badges removed */}
+                    {simcDiffs.size > 0 && (
+                      <div className="wishlist-simc-badges" style={{ marginRight: 8 }}>
+                        {orderedDiffs.filter(d => simcDiffs.has(d)).map(d => {
+                          const has = hasSimcForDiff(c, d)
+                          return (
+                            <span key={d} className={`wishlist-simc-badge ${has ? 'ok' : 'fail'}`} title={`SimC ${d}: ${has ? '✓' : '✗'}`}>
+                              {d.charAt(0).toUpperCase()} {has ? '✓' : '✗'}
+                            </span>
+                          )
+                        })}
+                      </div>
+                    )}
+                    {/* iLevel value removed */}
+                    <span className="wishlist-realm">{c.realm}</span>
+                    <span className="wishlist-overall" style={{ color: percColor(c.overallPercentage), marginLeft: 8 }}>
                       {c.overallPercentage.toFixed(1)}%
                     </span>
                   </div>
@@ -272,50 +282,43 @@ export default function Wishlist() {
 
                 {/* Expanded: 3-column layout per raid */}
                 {isExpanded && (
-                  <div style={{ padding: '0 14px 12px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div className="wishlist-expanded">
                     {charInstances.map((inst, ii) => {
                       const diffMap = new Map<string, Difficulty>()
                       for (const d of inst.difficulties) diffMap.set(d.difficulty.toLowerCase(), d)
                       return (
                         <div key={ii}>
                           {(raids.length > 1 || !selectedRaid) && (
-                            <div style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 600, marginBottom: 6, borderBottom: '1px solid var(--border)', paddingBottom: 3 }}>
-                              {inst.name}
-                            </div>
+                            <div className="wishlist-raid-name">{inst.name}</div>
                           )}
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+                          <div className="wishlist-diff-grid">
                             {orderedDiffs.map(diffKey => {
                               const d = diffMap.get(diffKey)
                               return (
-                                <div key={diffKey} style={{
-                                  background: 'var(--panel-bg)', borderRadius: 6,
-                                  padding: '8px 10px', minWidth: 0,
-                                  border: `1px solid var(--border)`,
-                                  opacity: d ? 1 : 0.4,
-                                }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, paddingBottom: 4, borderBottom: '1px solid var(--border)' }}>
-                                    <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: diffColor(diffKey) }}>
+                                <div key={diffKey} className={`wishlist-diff-col ${!d ? 'wishlist-diff-col--empty' : ''}`}>
+                                  <div className="wishlist-diff-header">
+                                    <span className="wishlist-diff-label" style={{ color: diffColor(diffKey) }}>
                                       {diffKey}
                                     </span>
-                                    {d && <span style={{ fontSize: 10, color: 'var(--muted)' }}>{d.totalPercentage.toFixed(1)}%</span>}
+                                    {d && <span className="wishlist-diff-pct">{d.totalPercentage.toFixed(1)}%</span>}
                                   </div>
                                   {d ? (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                    <div className="wishlist-encounters">
                                       {d.encounters.map((e, j) => {
                                         const activeItems = e.items.filter(it => (it.percentage ?? 0) > 0)
                                         if (activeItems.length === 0) return null
                                         return (
                                           <div key={j}>
-                                            <div style={{ fontSize: 11, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
-                                              <span style={{ color: 'var(--text)', fontWeight: 600 }}>{e.name}</span>
-                                              <span style={{ color: percColor(e.encounterPercentage), fontSize: 10, flexShrink: 0, marginLeft: 6 }}>{e.encounterPercentage > 0 ? `${e.encounterPercentage.toFixed(1)}%` : ''}</span>
+                                            <div className="wishlist-enc-header">
+                                              <span className="wishlist-enc-name">{e.name}</span>
+                                              <span className="wishlist-enc-pct" style={{ color: percColor(e.encounterPercentage) }}>{e.encounterPercentage > 0 ? `${e.encounterPercentage.toFixed(1)}%` : ''}</span>
                                             </div>
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                                            <div className="wishlist-items">
                                               {activeItems.map((it, k) => (
-                                                <div key={k} style={{ paddingLeft: 6, fontSize: 10, display: 'flex', alignItems: 'center', gap: 5 }}>
-                                                  {it.icon && <img src={it.icon} alt="" style={{ width: 14, height: 14, borderRadius: 2, flexShrink: 0 }} onError={ev => { (ev.currentTarget as HTMLImageElement).style.display = 'none' }} />}
-                                                  <span style={{ color: 'var(--accent)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>{it.name}</span>
-                                                  <span style={{ color: percColor(it.percentage ?? 0), fontWeight: 600, flexShrink: 0 }}>{(it.percentage ?? 0).toFixed(1)}%</span>
+                                                <div key={k} className="wishlist-item">
+                                                  {it.icon && <img src={it.icon} alt="" className="wishlist-item-icon" onError={ev => { (ev.currentTarget as HTMLImageElement).style.display = 'none' }} />}
+                                                  <span className="wishlist-item-name">{it.name}</span>
+                                                  <span className="wishlist-item-pct" style={{ color: percColor(it.percentage ?? 0) }}>{(it.percentage ?? 0).toFixed(1)}%</span>
                                                 </div>
                                               ))}
                                             </div>
@@ -324,7 +327,7 @@ export default function Wishlist() {
                                       })}
                                     </div>
                                   ) : (
-                                    <div style={{ fontSize: 10, color: 'var(--muted)', textAlign: 'center', padding: '8px 0' }}>—</div>
+                                    <div className="wishlist-diff-empty">—</div>
                                   )}
                                 </div>
                               )

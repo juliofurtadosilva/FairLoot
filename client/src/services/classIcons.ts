@@ -65,7 +65,19 @@ const classColorMap: Record<string, string> = {
   'warrior': '#C69B6D',
 }
 
-export function getClassColor(className?: string): string {
+// Darker variants for light backgrounds (high contrast on white/gray)
+const classColorLightMap: Record<string, string> = {
+  'priest': '#6e6e8a',
+  'rogue': '#9e8a00',
+  'hunter': '#5b7a1e',
+  'monk': '#00875a',
+  'mage': '#1a7f9e',
+  'paladin': '#b5537a',
+}
+
+export function getClassColor(className?: string, theme?: string): string {
   if (!className) return '#e8edff'
-  return classColorMap[className.trim().toLowerCase()] ?? '#e8edff'
+  const key = className.trim().toLowerCase()
+  if (theme === 'light' && classColorLightMap[key]) return classColorLightMap[key]
+  return classColorMap[key] ?? '#e8edff'
 }

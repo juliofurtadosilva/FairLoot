@@ -1,0 +1,354 @@
+.wishlist-title{
+  margin:0;
+  text-align:center;
+  font-size:18px;
+}
+
+.wishlist-error{
+  color:#f97316;
+  text-align:center;
+}
+
+.wishlist-toolbar{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+  justify-content:center;
+  width:100%;
+}
+
+.wishlist-search{
+  flex:1 1 200px;
+  max-width:300px;
+  padding:8px 12px;
+  border-radius:8px;
+  border:1px solid rgba(var(--accent-rgb),0.3);
+  background:var(--input-bg);
+  color:var(--text);
+  font-size:14px;
+  outline:none;
+}
+
+.wishlist-refresh-btn{
+  padding:8px 16px;
+  border-radius:8px;
+  border:1px solid var(--accent);
+  background:rgba(var(--accent-rgb),0.10);
+  color:var(--accent);
+  font-weight:600;
+  font-size:13px;
+  cursor:pointer;
+  min-width:80px;
+}
+
+.wishlist-raid-select{
+  padding:8px 12px;
+  border-radius:8px;
+  border:1px solid var(--border);
+  background:var(--select-bg);
+  color:var(--text);
+  font-size:13px;
+}
+
+.wishlist-count{
+  color:var(--muted);
+  font-size:11px;
+  text-align:center;
+}
+
+.wishlist-list{
+  width:100%;
+  max-height:calc(100vh - 300px);
+  overflow-y:auto;
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+
+.wishlist-no-player{
+  text-align:center;
+  color:var(--muted);
+  padding:20px;
+}
+
+.wishlist-char{
+  border:1px solid var(--border);
+  border-radius:8px;
+  background:var(--surface);
+  transition:background 0.2s;
+  animation: cardIn 0.35s ease both;
+}
+
+@for $i from 1 through 40 {
+  .wishlist-list .wishlist-char:nth-child(#{$i}) {
+    animation-delay: #{($i - 1) * 30}ms;
+  }
+}
+
+.wishlist-char--expanded{
+  background:rgba(var(--accent-rgb),0.05);
+}
+
+.wishlist-char-header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:8px 14px;
+  cursor:pointer;
+  user-select:none;
+  gap:8px;
+}
+
+.wishlist-char-left{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  min-width:0;
+}
+
+.wishlist-expand-arrow{
+  font-size:9px;
+  color:var(--muted);
+  transition:transform 0.2s;
+}
+
+.wishlist-char-name{
+  font-size:13px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+.wishlist-char-right{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  flex-shrink:0;
+}
+
+.wishlist-realm{
+  font-size:11px;
+  color:var(--muted);
+}
+
+.wishlist-overall{
+  font-size:11px;
+  font-weight:600;
+}
+
+/* Expanded content */
+.wishlist-expanded{
+  padding:0 14px 12px;
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+}
+
+.wishlist-raid-name{
+  font-size:12px;
+  color:var(--muted);
+  font-weight:600;
+  margin-bottom:6px;
+  border-bottom:1px solid var(--border);
+  padding-bottom:3px;
+}
+
+.wishlist-diff-grid{
+  display:grid;
+  grid-template-columns:repeat(3, 1fr);
+  gap:10px;
+}
+
+.wishlist-diff-col{
+  background:var(--panel-bg);
+  border-radius:6px;
+  padding:8px 10px;
+  min-width:0;
+  border:1px solid var(--border);
+}
+
+.wishlist-diff-col--empty{
+  opacity:0.4;
+}
+
+.wishlist-diff-header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin-bottom:8px;
+  padding-bottom:4px;
+  border-bottom:1px solid var(--border);
+}
+
+.wishlist-diff-label{
+  font-size:10px;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:0.5px;
+}
+
+.wishlist-diff-pct{
+  font-size:10px;
+  color:var(--muted);
+}
+
+.wishlist-encounters{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+
+.wishlist-enc-header{
+  font-size:11px;
+  display:flex;
+  justify-content:space-between;
+  align-items:baseline;
+  margin-bottom:4px;
+}
+
+.wishlist-enc-name{
+  color:var(--text);
+  font-weight:600;
+}
+
+.wishlist-enc-pct{
+  font-size:10px;
+  flex-shrink:0;
+  margin-left:6px;
+}
+
+.wishlist-items{
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+}
+
+.wishlist-item{
+  padding-left:6px;
+  font-size:10px;
+  display:flex;
+  align-items:center;
+  gap:5px;
+}
+
+.wishlist-item-icon{
+  width:14px;
+  height:14px;
+  border-radius:2px;
+  flex-shrink:0;
+}
+
+.wishlist-item-name{
+  color:var(--accent);
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  flex:1;
+  min-width:0;
+}
+
+.wishlist-item-pct{
+  font-weight:600;
+  flex-shrink:0;
+}
+
+.wishlist-diff-empty{
+  font-size:10px;
+  color:var(--muted);
+  text-align:center;
+  padding:8px 0;
+}
+
+/* SimC difficulty toggles */
+.wishlist-simc-toggles{
+  display:flex;
+  align-items:center;
+  gap:4px;
+}
+
+.wishlist-simc-label{
+  font-size:11px;
+  color:var(--muted);
+  font-weight:600;
+  margin-right:2px;
+}
+
+.wishlist-simc-btn{
+  width:24px;
+  height:24px;
+  border-radius:4px;
+  border:2px solid var(--border);
+  background:transparent;
+  color:var(--muted);
+  font-size:10px;
+  font-weight:700;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  transition:all 0.15s;
+  padding:0;
+  &.active{
+    background:rgba(var(--accent-rgb),0.12);
+    color:var(--text);
+  }
+  &:hover{
+    border-color:var(--accent);
+  }
+}
+
+/* iLevel badges in character header */
+.wishlist-char-indicators{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  flex-shrink:0;
+}
+
+.wishlist-ilvl-badges,
+.wishlist-simc-badges{
+  display:flex;
+  gap:3px;
+  align-items:center;
+}
+
+.wishlist-ilvl-badge,
+.wishlist-simc-badge{
+  font-size:9px;
+  font-weight:700;
+  padding:1px 4px;
+  border-radius:3px;
+  white-space:nowrap;
+  line-height:1.3;
+}
+
+.wishlist-ilvl-badge.ok{
+  color:#10b981;
+  background:rgba(16,185,129,0.12);
+  border:1px solid rgba(16,185,129,0.3);
+}
+
+.wishlist-ilvl-badge.fail{
+  color:#ef4444;
+  background:rgba(239,68,68,0.10);
+  border:1px solid rgba(239,68,68,0.3);
+}
+
+.wishlist-ilvl-value{
+  font-size:11px;
+  font-weight:700;
+  min-width:38px;
+  text-align:right;
+}
+
+.wishlist-simc-badge.ok{
+  color:#10b981;
+  background:rgba(16,185,129,0.10);
+  border:1px solid rgba(16,185,129,0.25);
+}
+
+.wishlist-simc-badge.fail{
+  color:#ef4444;
+  background:rgba(239,68,68,0.08);
+  border:1px solid rgba(239,68,68,0.25);
+}

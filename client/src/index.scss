@@ -207,3 +207,9 @@ nav { position: sticky; top:0; z-index: 20; overflow: visible }
   from { transform: translateX(100%); opacity: 0; }
   to   { transform: translateX(0);    opacity: 1; }
 }
+
+/* Card entrance animation */
+@keyframes cardIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}

@@ -1,29 +1,9 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import api from '../services/api'
 import { useApp } from '../context/AppContext'
-import { isDemoMode, getDemoGuild, saveDemoGuild, getDemoCharacters, toggleDemoNewPlayer } from '../services/demoData'
-import { getClassIconUrl, getClassNameLocalized } from '../services/classIcons'
-
-const classColors: Record<string, string> = {
-  'death knight': '#C41E3A',
-  'demon hunter': '#A330C9',
-  'druid': '#FF7C0A',
-  'evoker': '#33937F',
-  'hunter': '#AAD372',
-  'mage': '#3FC7EB',
-  'monk': '#00FF98',
-  'paladin': '#F48CBA',
-  'priest': '#FFFFFF',
-  'rogue': '#FFF468',
-  'shaman': '#0070DD',
-  'warlock': '#8788EE',
-  'warrior': '#C69B6D',
-}
-
-const getClassColor = (cls?: string) => {
-  if (!cls) return '#e8edff'
-  return classColors[cls.toLowerCase()] ?? '#e8edff'
-}
+import { isDemoMode, getDemoGuild, saveDemoGuild, getDemoCharacters, toggleDemoNewPlayer, getDemoLootHistory } from '../services/demoData'
+import { getClassIconUrl, getClassNameLocalized, getClassColor } from '../services/classIcons'
+import './AdminPanel.scss'
 
 export default function AdminPanel() {
   const [guild, setGuild] = useState<any>(null)
@@ -32,7 +12,9 @@ export default function AdminPanel() {
   const [form, setForm] = useState<any>({})
   const [search, setSearch] = useState('')
   const [showHelp, setShowHelp] = useState(false)
-  const { t, lang } = useApp()
+  const [wowauditStatus, setWowauditStatus] = useState<'checking' | 'connected' | 'disconnected' | 'nokey'>('checking')
+  const [wowauditCharCount, setWowauditCharCount] = useState(0)
+  const { t, lang, theme, showAlert, showToast, showConfirm } = useApp()
 
   const fetchData = async () => {
     try {
@@ -55,23 +37,48 @@ export default function AdminPanel() {
 
   useEffect(() => { fetchData() }, [])
 
+  // Check WowAudit connection status
+  useEffect(() => {
+    const checkWowaudit = async () => {
+      if (isDemoMode()) {
+        setWowauditStatus('connected')
+        setWowauditCharCount(getDemoCharacters().length)
+        return
+      }
+      try {
+        const g = await api.get('/api/guild')
+        if (!g.data?.wowauditApiKey) {
+          setWowauditStatus('nokey')
+          return
+        }
+        const r = await api.get('/api/guild/wowaudit/characters')
+        const count = (r.data?.characters || []).length
+        setWowauditCharCount(count)
+        setWowauditStatus(count > 0 ? 'connected' : 'disconnected')
+      } catch {
+        setWowauditStatus('disconnected')
+      }
+    }
+    checkWowaudit()
+  }, [])
+
   const save = async () => {
     try {
       setLoading(true)
       if (isDemoMode()) {
         saveDemoGuild(form)
         setGuild(form)
-        alert(t('admin.saved'))
+        showToast(t('admin.saved'))
         return
       }
       await api.put('/api/guild', form)
       await fetchData()
-      alert(t('admin.saved'))
+      showToast(t('admin.saved'))
     } catch (e) {
       const resp = (e as any)?.response?.data
       const msg = resp ? JSON.stringify(resp) : (e as any)?.message || t('admin.saveError')
       console.error('Save guild error', resp || e)
-      alert(msg)
+      showAlert(msg)
     } finally { setLoading(false) }
   }
 
@@ -81,8 +88,8 @@ export default function AdminPanel() {
       setLoading(true)
       await api.post('/api/guild/sync-characters')
       await fetchData()
-      alert(t('admin.synced'))
-    } catch (e) { console.error(e); alert(t('admin.syncError')) } finally { setLoading(false) }
+      showToast(t('admin.synced'))
+    } catch (e) { console.error(e); showAlert(t('admin.syncError')) } finally { setLoading(false) }
   }
 
   const filtered = useMemo(() => {
@@ -92,147 +99,274 @@ export default function AdminPanel() {
     return sorted.filter(c => (c.name || '').toLowerCase().includes(q) || (c.class || '').toLowerCase().includes(q))
   }, [chars, search])
 
+  // Live preview: use real characters to show how weights affect priority
+  const previewRanking = useMemo(() => {
+    const a = form.priorityAlpha ?? 0.4
+    const b = form.priorityBeta ?? 0.3
+    const g = form.priorityGamma ?? 0.3
+
+    // get loot history for score + recent count
+    let drops: any[] = []
+    if (isDemoMode()) {
+      drops = getDemoLootHistory().filter((d: any) => d.assignedTo && !d.isReverted)
+    }
+    const recentCutoff = Date.now() - 30 * 24 * 60 * 60 * 1000
+    const recentMap: Record<string, number> = {}
+    for (const d of drops) {
+      if (new Date(d.createdAt).getTime() >= recentCutoff) {
+        recentMap[d.assignedTo] = (recentMap[d.assignedTo] || 0) + 1
+      }
+    }
+
+    // pick up to 5 real characters
+    const sample = chars.slice(0, 5).map(c => {
+      const hash = c.name.split('').reduce((acc: number, ch: string) => acc + ch.charCodeAt(0), 0)
+      const upgradeRaw = 20 + (hash % 80)          // 20–99%
+      return {
+        name: c.name,
+        className: c.class,
+        upgradeRaw,                                  // raw upgrade %
+        scoreRaw: c.score ?? 0,                      // accumulated score (pts)
+        recentRaw: recentMap[c.name] ?? 0,            // items in last 30d
+      }
+    })
+    if (sample.length === 0) return []
+
+    const maxUpgrade = Math.max(...sample.map(c => c.upgradeRaw), 1)
+    const maxScore = Math.max(...sample.map(c => c.scoreRaw), 1)
+    const maxRecent = Math.max(...sample.map(c => c.recentRaw), 1)
+
+    return sample
+      .map(c => {
+        const upgradeNorm = c.upgradeRaw / maxUpgrade
+        const fairnessNorm = 1 - (c.scoreRaw / maxScore)
+        const lootCountNorm = 1 - (c.recentRaw / maxRecent)
+        const priority = a * upgradeNorm + b * fairnessNorm + g * lootCountNorm
+        return { ...c, upgradeNorm, fairnessNorm, lootCountNorm, priority }
+      })
+      .sort((x, y) => y.priority - x.priority)
+  }, [form.priorityAlpha, form.priorityBeta, form.priorityGamma, chars])
+
+  const finalizeSeason = async () => {
+    if (!(await showConfirm(t('admin.seasonFinalizeConfirm'), true))) return
+    if (!(await showConfirm(t('admin.seasonFinalizeConfirm2'), true))) return
+    try {
+      if (isDemoMode()) {
+        // demo: archive loot and reset scores
+        const drops = getDemoLootHistory().filter((d: any) => !d.isReverted)
+        if (drops.length === 0) { showAlert('Nenhum loot na season atual.'); return }
+        const savedSeasons = sessionStorage.getItem('demoSeasons')
+        const seasons = savedSeasons ? JSON.parse(savedSeasons) : []
+        const earliest = drops.reduce((min: any, d: any) => new Date(d.createdAt) < new Date(min.createdAt) ? d : min, drops[0])
+        const num = seasons.length + 1
+        seasons.push({
+          id: crypto.randomUUID(),
+          name: `Season ${num}`,
+          startedAt: earliest.createdAt,
+          endedAt: new Date().toISOString(),
+          drops: getDemoLootHistory(),
+        })
+        sessionStorage.setItem('demoSeasons', JSON.stringify(seasons))
+        sessionStorage.removeItem('demoLootHistory')
+        // reset scores
+        const demoChars = getDemoCharacters()
+        const flags: Record<string, boolean> = {}
+        demoChars.forEach((c: any) => { flags[c.name] = c.isNewPlayer })
+        sessionStorage.setItem('demoCharacters', JSON.stringify(flags))
+        setChars(getDemoCharacters())
+        showToast(t('admin.seasonFinalized'))
+      } else {
+        await api.post('/api/guild/season/finalize')
+        await fetchData()
+        showToast(t('admin.seasonFinalized'))
+      }
+    } catch (e: any) {
+      showAlert(e?.response?.data || t('admin.seasonFinalizeError'))
+    }
+  }
+
   return (
     <div className="tab-content">
       <div className="card tab-card admin-card" style={{ padding: '24px 20px', gap: 16 }}>
-        <h3 style={{ margin: 0, textAlign: 'center', fontSize: 18 }}>{t('admin.title')}</h3>
+        <h3 className="admin-title">{t('admin.title')}</h3>
 
         {guild ? (
-          <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div className="admin-body">
             {/* Settings section */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, background: 'var(--panel-bg)', borderRadius: 8, padding: '16px 18px', border: '1px solid var(--border)' }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>{t('admin.settings')}</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                <label style={{ fontSize: 12, color: 'var(--muted)', minWidth: 120 }}>Wowaudit API Key:</label>
+            <div className="admin-settings">
+              <div className="admin-section-label">{t('admin.settings')}</div>
+              <div className="admin-field-row">
+                <label className="admin-label">Wowaudit API Key:</label>
                 <input
                   value={form.wowauditApiKey || ''}
                   onChange={e => setForm({ ...form, wowauditApiKey: e.target.value })}
-                  style={{ flex: 1, minWidth: 200, padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--input-bg)', color: 'var(--text)', fontSize: 13 }}
+                  className="admin-input"
                 />
+                <div className={`admin-wowaudit-status admin-wowaudit-status--${wowauditStatus}`}>
+                  <span className="admin-wowaudit-dot" />
+                  <span className="admin-wowaudit-label">
+                    {wowauditStatus === 'checking' && t('admin.wowauditChecking')}
+                    {wowauditStatus === 'connected' && `${t('admin.wowauditConnected')} · ${wowauditCharCount} ${t('admin.wowauditChars')}`}
+                    {wowauditStatus === 'disconnected' && t('admin.wowauditDisconnected')}
+                    {wowauditStatus === 'nokey' && t('admin.wowauditNoKey')}
+                  </span>
+                </div>
               </div>
-              <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div className="admin-weights-row">
+                <div className="admin-weight-group">
                   <label style={{ fontSize: 12, color: '#fb923c' }}>α Alpha:</label>
                   <input type="number" step="0.05" min={0} max={1} value={form.priorityAlpha ?? 0.4}
                     onChange={e => setForm({ ...form, priorityAlpha: Number(e.target.value) })}
-                    style={{ width: 60, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--input-bg)', color: 'var(--text)', fontSize: 13, textAlign: 'center' }}
+                    className="admin-weight-input"
                   />
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div className="admin-weight-group">
                   <label style={{ fontSize: 12, color: 'var(--color-cyan)' }}>β Beta:</label>
                   <input type="number" step="0.05" min={0} max={1} value={form.priorityBeta ?? 0.3}
                     onChange={e => setForm({ ...form, priorityBeta: Number(e.target.value) })}
-                    style={{ width: 60, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--input-bg)', color: 'var(--text)', fontSize: 13, textAlign: 'center' }}
+                    className="admin-weight-input"
                   />
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div className="admin-weight-group">
                   <label style={{ fontSize: 12, color: 'var(--color-transmog)' }}>γ Gamma:</label>
                   <input type="number" step="0.05" min={0} max={1} value={form.priorityGamma ?? 0.3}
                     onChange={e => setForm({ ...form, priorityGamma: Number(e.target.value) })}
-                    style={{ width: 60, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--input-bg)', color: 'var(--text)', fontSize: 13, textAlign: 'center' }}
+                    className="admin-weight-input"
                   />
                 </div>
               </div>
 
-              {/* Min iLevel per difficulty */}
-              <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-                <div style={{ fontSize: 12, color: 'var(--muted)', minWidth: 120, alignSelf: 'center' }}>{t('admin.minIlevel')}:</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <label style={{ fontSize: 12, color: 'var(--color-green)' }}>N:</label>
-                  <input type="number" min={0} value={form.minIlevelNormal ?? 0}
-                    onChange={e => setForm({ ...form, minIlevelNormal: Number(e.target.value) })}
-                    style={{ width: 70, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--input-bg)', color: 'var(--text)', fontSize: 13, textAlign: 'center' }}
-                  />
+              {/* Min iLevel inputs removed per request */}
+
+              {/* Live preview */}
+              {previewRanking.length > 0 && (
+              <div className="admin-preview">
+                <div className="admin-preview-title">{t('admin.preview')}</div>
+                <div className="admin-preview-desc">{t('admin.previewDesc')}</div>
+                <div className="admin-preview-item-example">
+                  🗡️ <span>{lang === 'pt' ? 'Item exemplo:' : 'Example item:'}</span> <strong>Glaives of the Ruthless Executioner</strong>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <label style={{ fontSize: 12, color: 'var(--color-heroic)' }}>H:</label>
-                  <input type="number" min={0} value={form.minIlevelHeroic ?? 0}
-                    onChange={e => setForm({ ...form, minIlevelHeroic: Number(e.target.value) })}
-                    style={{ width: 70, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--input-bg)', color: 'var(--text)', fontSize: 13, textAlign: 'center' }}
-                  />
+                <div className="admin-preview-table-wrap">
+                  <table className="admin-preview-table">
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>{lang === 'pt' ? 'Jogador' : 'Player'}</th>
+                        <th style={{ color: '#fb923c' }}>Upgrade (α)</th>
+                        <th style={{ color: 'var(--color-cyan)' }}>Score (β)</th>
+                        <th style={{ color: 'var(--color-transmog)' }}>{lang === 'pt' ? 'Recente 30d' : 'Recent 30d'} (γ)</th>
+                        <th>{lang === 'pt' ? 'Prioridade' : 'Priority'}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {previewRanking.map((c, i) => (
+                        <tr key={c.name}>
+                          <td className="admin-preview-rank">#{i + 1}</td>
+                          <td className="admin-preview-name-cell" style={{ color: getClassColor(c.className, theme) }}>{c.name}</td>
+                          <td><span className="admin-preview-raw">{c.upgradeRaw}%</span></td>
+                          <td><span className="admin-preview-raw">{c.scoreRaw.toFixed(1)}pts</span></td>
+                          <td><span className="admin-preview-raw">{c.recentRaw} {lang === 'pt' ? 'itens' : 'items'}</span></td>
+                          <td>
+                            <div className="admin-preview-prio-cell">
+                              <span className="admin-preview-bar-track">
+                                <span className="admin-preview-bar" style={{ width: `${(c.priority / Math.max(previewRanking[0]?.priority || 0.01, 0.01)) * 100}%`, background: getClassColor(c.className, theme) }} />
+                              </span>
+                              <strong className="admin-preview-prio-value">{(c.priority * 100).toFixed(1)}%</strong>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <label style={{ fontSize: 12, color: 'var(--color-mythic)' }}>M:</label>
-                  <input type="number" min={0} value={form.minIlevelMythic ?? 0}
-                    onChange={e => setForm({ ...form, minIlevelMythic: Number(e.target.value) })}
-                    style={{ width: 70, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--input-bg)', color: 'var(--text)', fontSize: 13, textAlign: 'center' }}
-                  />
+                <div className="admin-preview-legend">
+                  <span className="admin-preview-legend-item">
+                    <strong style={{ color: '#fb923c' }}>Upgrade</strong>: {lang === 'pt' ? '% de melhoria do item (WowAudit). Maior % = maior prioridade.' : 'Item improvement % (WowAudit). Higher % = higher priority.'}
+                  </span>
+                  <span className="admin-preview-legend-item">
+                    <strong style={{ color: 'var(--color-cyan)' }}>Score</strong>: {lang === 'pt' ? 'Total de itens já recebidos. Menor score = maior prioridade.' : 'Total items already received. Lower score = higher priority.'}
+                  </span>
+                  <span className="admin-preview-legend-item">
+                    <strong style={{ color: 'var(--color-transmog)' }}>{lang === 'pt' ? 'Recente' : 'Recent'}</strong>: {lang === 'pt' ? 'Itens nos últimos 30 dias. Menos itens = maior prioridade.' : 'Items in last 30 days. Fewer items = higher priority.'}
+                  </span>
                 </div>
               </div>
+              )}
 
               {/* Formula explanation — collapsible */}
-              <div style={{ background: 'rgba(var(--accent-rgb),0.06)', border: '1px solid rgba(var(--accent-rgb),0.15)', borderRadius: 6, marginTop: 4, overflow: 'hidden' }}>
-                <div
-                  onClick={() => setShowHelp(!showHelp)}
-                  style={{ padding: '10px 14px', cursor: 'pointer', userSelect: 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
-                >
-                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-transmog)' }}>{t('admin.helpTitle')}</span>
-                  <span style={{ fontSize: 10, color: 'var(--muted)', transition: 'transform 0.2s', transform: showHelp ? 'rotate(90deg)' : 'rotate(0)' }}>▶</span>
+              <div className="admin-formula-box">
+                <div className="admin-formula-toggle" onClick={() => setShowHelp(!showHelp)}>
+                  <span className="admin-formula-toggle-label">{t('admin.helpTitle')}</span>
+                  <span className="admin-formula-toggle-arrow" style={{ transform: showHelp ? 'rotate(90deg)' : 'rotate(0)' }}>▶</span>
                 </div>
                 {showHelp && (
-                  <div style={{ padding: '0 14px 14px' }}>
-                    <div style={{ fontSize: 12, color: 'var(--text)', fontFamily: 'monospace', background: 'var(--panel-bg)', padding: '8px 12px', borderRadius: 4, marginBottom: 10, textAlign: 'center' }}>
+                  <div className="admin-formula-content">
+                    <div className="admin-formula-equation">
                       Priority = <span style={{ color: '#fb923c' }}>α</span> × upgradeNorm + <span style={{ color: 'var(--color-cyan)' }}>β</span> × fairnessNorm + <span style={{ color: 'var(--color-transmog)' }}>γ</span> × lootCountNorm
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 8 }}>
-                      <div style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.6, textAlign: 'justify' }}>
+                    <div className="admin-formula-grid">
+                      <div className="admin-formula-item">
                         <span style={{ color: '#fb923c', fontWeight: 700 }}>{t('admin.formula.alphaTitle')}</span><br />
                         {t('admin.formula.alphaDesc')} <strong style={{ color: 'var(--text)' }}>{t('admin.formula.alphaHighlight')}</strong>
                       </div>
-                      <div style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.6, textAlign: 'justify' }}>
+                      <div className="admin-formula-item">
                         <span style={{ color: 'var(--color-cyan)', fontWeight: 700 }}>{t('admin.formula.betaTitle')}</span><br />
                         {t('admin.formula.betaDesc')} <strong style={{ color: 'var(--text)' }}>{t('admin.formula.betaHighlight')}</strong>{t('admin.formula.betaSuffix')}
                       </div>
-                      <div style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.6, textAlign: 'justify' }}>
+                      <div className="admin-formula-item">
                         <span style={{ color: 'var(--color-transmog)', fontWeight: 700 }}>{t('admin.formula.gammaTitle')}</span><br />
                         {t('admin.formula.gammaDesc')} <strong style={{ color: 'var(--text)' }}>{t('admin.formula.gammaHighlight')}</strong>{t('admin.formula.gammaSuffix')}
                       </div>
                     </div>
-                    <div style={{ marginTop: 10, fontSize: 11, color: 'var(--muted)', lineHeight: 1.6, textAlign: 'justify' }}>
-                      <strong style={{ color: 'var(--muted)' }}>{t('admin.formula.tiebreakLabel')}</strong> {t('admin.formula.tiebreak')}<br />
-                       <strong style={{ color: 'var(--muted)' }}>{t('admin.formula.tipLabel')}</strong> {t('admin.formula.tip')}
+                    <div className="admin-formula-footer">
+                      <strong>{t('admin.formula.tiebreakLabel')}</strong> {t('admin.formula.tiebreak')}<br />
+                       <strong>{t('admin.formula.tipLabel')}</strong> {t('admin.formula.tip')}
                     </div>
                   </div>
                 )}
               </div>
-              <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                <button onClick={save} disabled={loading} style={{ padding: '7px 20px', fontSize: 13 }}>{t('admin.save')}</button>
-                <button onClick={sync} disabled={loading} style={{ padding: '7px 20px', fontSize: 13 }}>{t('admin.sync')}</button>
+              <div className="admin-btn-row">
+                <button onClick={save} disabled={loading} className="admin-btn">{t('admin.save')}</button>
+                <button onClick={sync} disabled={loading} className="admin-btn">{t('admin.sync')}</button>
+              </div>
+
+              {/* Season management */}
+              <div className="admin-season-section">
+                <button onClick={finalizeSeason} disabled={loading} className="admin-btn admin-btn--danger">
+                  🏁 {t('admin.seasonFinalize')}
+                </button>
+                <span className="admin-season-hint">{lang === 'pt' ? 'Arquiva o histórico e zera os scores. Requer confirmação dupla.' : 'Archives history and resets scores. Requires double confirmation.'}</span>
               </div>
             </div>
 
             {/* Characters section */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('admin.characters')} ({filtered.length})</div>
+            <div className="admin-chars-section">
+              <div className="admin-chars-header">
+                <div className="admin-chars-count">{t('admin.characters')} ({filtered.length})</div>
                 <input
                   type="text"
                   placeholder={t('admin.search')}
                   value={search}
                   onChange={e => setSearch(e.target.value)}
-                  style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid rgba(var(--accent-rgb),0.3)', background: 'var(--input-bg)', color: 'var(--text)', fontSize: 12, width: 180 }}
+                  className="admin-search"
                 />
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 6 }}>
-                {filtered.length === 0 && <div style={{ color: 'var(--muted)', fontSize: 13, gridColumn: '1 / -1', textAlign: 'center', padding: 16 }}>{t('admin.noChar')}</div>}
+              <div className="admin-chars-grid">
+                {filtered.length === 0 && <div className="admin-no-char">{t('admin.noChar')}</div>}
                 {filtered.map((c, i) => {
                   const classIcon = getClassIconUrl(c.class)
                   const className = getClassNameLocalized(c.class, lang)
                   return (
-                  <div key={i} style={{
-                    display: 'flex', alignItems: 'center', gap: 8,
-                    padding: '8px 10px', borderRadius: 6,
-                    background: 'var(--panel-bg)', border: c.isNewPlayer ? '1px solid rgba(250,204,21,0.4)' : '1px solid var(--border)',
-                  }}>
-                    {classIcon && <img src={classIcon} alt={className} style={{ width: 24, height: 24, borderRadius: 4, flexShrink: 0 }} draggable={false} />}
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: getClassColor(c.class), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</div>
-                      <div style={{ fontSize: 10, color: 'var(--muted)' }}>{className}</div>
+                  <div key={i} className={`admin-char-card ${c.isNewPlayer ? 'admin-char-card--new' : ''}`}>
+                    {classIcon && <img src={classIcon} alt={className} className="admin-char-icon" draggable={false} />}
+                    <div className="admin-char-info">
+                      <div className="admin-char-name class-color-text" style={{ color: getClassColor(c.class, theme) }}>{c.name}</div>
+                      <div className="admin-char-class">{className}</div>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                      <div style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'right' }}>
-                        <div style={{ fontWeight: 600 }}>{Number(c.score).toFixed(1)}</div>
-                        <div style={{ fontSize: 9, color: 'var(--muted)' }}>{t('admin.score')}</div>
+                    <div className="admin-char-right">
+                      <div className="admin-char-score">
+                        <div className="admin-char-score-value">{Number(c.score).toFixed(1)}</div>
+                        <div className="admin-char-score-label">{t('admin.score')}</div>
                       </div>
                       <button
                         onClick={async () => {
@@ -247,23 +381,17 @@ export default function AdminPanel() {
                           }
                         }}
                         title={t('admin.newPlayer')}
-                        style={{
-                          padding: '2px 6px', borderRadius: 4, fontSize: 9, fontWeight: 700,
-                          border: c.isNewPlayer ? '1px solid rgba(250,204,21,0.5)' : '1px solid var(--border)',
-                          background: c.isNewPlayer ? 'rgba(250,204,21,0.15)' : 'transparent',
-                          color: c.isNewPlayer ? '#facc15' : 'var(--muted)',
-                          cursor: 'pointer', lineHeight: 1.4,
-                        }}
-                               >{t('admin.newPlayer')}</button>
-                            </div>
-                          </div>
-                          )
-                        })}
-                      </div>
+                        className={`admin-new-btn ${c.isNewPlayer ? 'admin-new-btn--active' : 'admin-new-btn--inactive'}`}
+                      >{t('admin.newPlayer')}</button>
+                    </div>
+                  </div>
+                  )
+                })}
+              </div>
             </div>
           </div>
         ) : (
-          <div style={{ color: 'var(--muted)' }}>{t('admin.loading')}</div>
+          <div className="admin-loading">{t('admin.loading')}</div>
         )}
       </div>
     </div>

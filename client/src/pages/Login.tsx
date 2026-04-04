@@ -8,7 +8,7 @@ export default function Login() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const navigate = useNavigate()
-  const { t, theme, toggleTheme, lang, setLang } = useApp()
+  const { t, theme, setTheme, lang, setLang } = useApp()
 
   const handle = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -38,19 +38,11 @@ export default function Login() {
         gap: 8,
         zIndex: 10,
       }}>
-        <button
-          onClick={toggleTheme}
-          title={theme === 'dark' ? 'Light mode' : 'Dark mode'}
-          style={{
-            fontSize: 16,
-            padding: '6px 10px',
-            borderRadius: 8,
-            border: '1px solid var(--border)',
-            background: 'var(--surface)',
-            color: 'var(--text)',
-            cursor: 'pointer',
-          }}
-        >{theme === 'dark' ? '☀️' : '🌙'}</button>
+        <div className="theme-picker">
+          <button className={`theme-btn${theme === 'dark' ? ' active' : ''}`} onClick={() => setTheme('dark')} title="Dark">Dark</button>
+          <button className={`theme-btn${theme === 'light' ? ' active' : ''}`} onClick={() => setTheme('light')} title="Light">Light</button>
+          <button className={`theme-btn${theme === 'classic' ? ' active' : ''}`} onClick={() => setTheme('classic')} title="WoW Classic">WoW</button>
+        </div>
         <button
           onClick={() => setLang(lang === 'pt' ? 'en' : 'pt')}
           style={{

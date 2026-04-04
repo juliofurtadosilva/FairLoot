@@ -35,13 +35,22 @@ namespace FairLoot.Controllers
 
         // GET api/loot/history
         [HttpGet("history")]
-        public async Task<IActionResult> History()
+        public async Task<IActionResult> History([FromQuery] Guid? seasonId = null)
         {
             var (user, error) = await GetAuthenticatedUserWithGuildAsync(_context);
             if (error != null) return error;
 
-            var drops = await _context.LootDrops
-                .Where(d => d.GuildId == user!.GuildId)
+            var query = _context.LootDrops
+                .Where(d => d.GuildId == user!.GuildId);
+
+            if (seasonId.HasValue)
+            {
+                var season = await _context.Seasons.FirstOrDefaultAsync(s => s.Id == seasonId.Value && s.GuildId == user!.GuildId);
+                if (season != null)
+                    query = query.Where(d => d.CreatedAt >= season.StartedAt && d.CreatedAt <= season.EndedAt);
+            }
+
+            var drops = await query
                 .OrderByDescending(d => d.CreatedAt)
                 .ToListAsync();
             return Ok(drops);
@@ -313,6 +322,21 @@ namespace FairLoot.Controllers
 
             await _context.SaveChangesAsync();
             return Ok(new { recalculated = chars.Count, dropsConsidered = drops.Count });
+        }
+
+        // DELETE api/loot/{id}
+        [HttpDelete("{id:guid}")]
+        public async Task<IActionResult> Delete(Guid id)
+        {
+            var (user, error) = await GetAuthenticatedAdminAsync(_context);
+            if (error != null) return error;
+
+            var drop = await _context.LootDrops.FirstOrDefaultAsync(d => d.Id == id && d.GuildId == user!.GuildId && d.IsReverted);
+            if (drop == null) return NotFound();
+
+            _context.LootDrops.Remove(drop);
+            await _context.SaveChangesAsync();
+            return Ok(new { deleted = true });
         }
 
         // POST api/loot/icons — resolve item icon URLs (no auth required)

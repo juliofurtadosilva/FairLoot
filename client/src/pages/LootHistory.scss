@@ -7,8 +7,8 @@
   gap:var(--lh-filter-gap);
   flex-wrap:wrap;
   margin-bottom:12px;
-  align-items:center;
-  justify-content:center;
+  align-items:stretch;
+  width:100%;
 }
 
 .lh-toggle{
@@ -17,6 +17,13 @@
   gap:8px;
   cursor:pointer;
   position:relative;
+  height:38px;
+  padding:0 10px;
+  border-radius:6px;
+  border:1px solid var(--border);
+  background:var(--input-bg);
+  box-sizing:border-box;
+  flex-shrink:0;
 }
 
 .lh-toggle-input{
@@ -33,10 +40,10 @@
   width:34px;
   height:22px;
   border-radius:12px;
-  background:rgba(255,255,255,0.06);
+  background:var(--glass);
   display:inline-block;
   position:relative;
-  box-shadow:inset 0 0 0 1px rgba(255,255,255,0.02);
+  box-shadow:inset 0 0 0 1px var(--border);
 }
 
 .lh-toggle-switch::after{
@@ -71,12 +78,49 @@
   border:1px solid var(--border);
   background:var(--input-bg);
   color:var(--text);
-  font-size:12px;
-  height:36px;
+  font-size:13px;
+  height:38px;
+  box-sizing:border-box;
+  flex:1 1 0;
+  min-width:0;
 }
 
 .lh-select{
   background:var(--select-bg);
+}
+
+.lh-season-select{
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 160px;
+  font-weight:600;
+  border-color:rgba(var(--accent-rgb),0.3);
+}
+
+.lh-load-more-row{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:6px;
+  margin-top:12px;
+}
+
+.lh-load-more-btn{
+  padding:8px 28px;
+  border-radius:6px;
+  border:1px solid var(--accent);
+  background:rgba(var(--accent-rgb),0.08);
+  color:var(--accent);
+  font-size:13px;
+  font-weight:600;
+  cursor:pointer;
+  transition: background 0.15s;
+  &:hover{ background:rgba(var(--accent-rgb),0.18); }
+}
+
+.lh-load-more-count{
+  font-size:11px;
+  color:var(--muted);
 }
 
 .lh-no-records{
@@ -117,6 +161,13 @@
   flex-direction:column;
   gap:6px;
   transition:opacity .3s, border-color .3s, background .3s;
+  animation: cardIn 0.35s ease both;
+}
+
+@for $i from 1 through 40 {
+  .lh-boss-items .lh-card:nth-child(#{$i}) {
+    animation-delay: #{($i - 1) * 30}ms;
+  }
 }
 
 .lh-card.reverted{
@@ -177,6 +228,20 @@
   text-transform:uppercase;
   letter-spacing:0.5px;
   flex-shrink:0;
+}
+
+.lh-delete-btn{
+  background:none;
+  border:none;
+  color:#ef4444;
+  cursor:pointer;
+  font-size:14px;
+  padding:0 2px;
+  line-height:1;
+  opacity:0.5;
+  transition:opacity .15s;
+  flex-shrink:0;
+  &:hover{ opacity:1; }
 }
 
 .lh-transmog{
@@ -254,7 +319,7 @@
   color:var(--muted);
   padding:6px 8px;
   border-radius:6px;
-  background: rgba(255,255,255,0.02);
+  background: var(--panel-bg);
   display:flex;
   align-items:center;
   gap:8px;

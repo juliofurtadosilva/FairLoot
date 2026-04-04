@@ -1,5 +1,80 @@
 /* Styles migrated from inline styles in Loot.tsx */
 
+/* Step indicator */
+.loot-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  width: 100%;
+  margin-bottom: 15px;
+}
+
+.loot-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: default;
+}
+
+.loot-step-num {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  border: 2px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  transition: all 0.25s ease;
+  flex-shrink: 0;
+}
+
+.loot-step-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+  white-space: nowrap;
+  transition: color 0.25s ease;
+}
+
+.loot-step--active .loot-step-num {
+  border-color: var(--accent);
+  background: rgba(var(--accent-rgb), 0.15);
+  color: var(--accent);
+}
+
+.loot-step--active .loot-step-label {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.loot-step--done .loot-step-num {
+  border-color: rgba(16, 185, 129, 0.5);
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+}
+
+.loot-step--done .loot-step-label {
+  color: var(--muted);
+}
+
+.loot-step-line {
+  width: 48px;
+  height: 2px;
+  background: var(--border);
+  margin: 0 12px;
+  flex-shrink: 0;
+  transition: background 0.25s ease;
+}
+
+.loot-step-line--done {
+  background: rgba(16, 185, 129, 0.4);
+}
+
 .loot-panel--container {
   max-height: none;
   overflow: visible;
@@ -38,7 +113,7 @@
 .item-icon.placeholder { width:36px; height:36px; background:var(--panel-bg); border-radius:4px }
 .item-body { flex:1; min-width:0 }
 .item-name { font-weight:600; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical }
-.item-count { font-size:12px; font-weight:700; color:#fff; flex-shrink:0; background:var(--accent); border-radius:50%; width:22px; height:22px; display:flex; align-items:center; justify-content:center }
+.item-count { font-size:12px; font-weight:700; color:var(--text); flex-shrink:0; background:var(--accent); border-radius:50%; width:22px; height:22px; display:flex; align-items:center; justify-content:center }
 
 .loot-boss-column.boss-side { flex:1; display:flex; flex-direction:column; align-items:center }
 .boss-raid-label { margin-bottom:8px; font-size:15px }
@@ -57,7 +132,13 @@
 
 .suggestions-scroll { max-height: none; overflow: visible; padding: 2px }
 .suggestions-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap:10px }
-.suggestion-card { padding: 12px 14px; display:flex; flex-direction:column; gap:8px }
+.suggestion-card { padding: 12px 14px; display:flex; flex-direction:column; gap:8px; animation: cardIn 0.35s ease both }
+
+@for $i from 1 through 30 {
+  .suggestions-grid .suggestion-card:nth-child(#{$i}) {
+    animation-delay: #{($i - 1) * 40}ms;
+  }
+}
 .suggestion-header { display:flex; align-items:center; gap:8px; padding:4px 0; border-bottom: 1px solid rgba(var(--accent-rgb),0.12) }
 .suggestion-icon { width:28px; height:28px; border-radius:4px; flex-shrink:0 }
 .suggestion-icon.placeholder { width:28px; height:28px; background:var(--panel-bg); border-radius:4px }
@@ -87,7 +168,9 @@
 .candidate-meta { display:flex; gap:4px; align-items:center; flex-shrink:0 }
 .badge { font-size:10px; font-weight:700; padding:2px 5px; border-radius:6px; white-space:nowrap }
 .badge-upgrade { background: rgba(var(--accent-rgb),0.06) }
-.badge-priority { color: #FFD700; background: rgba(0,0,0,0.25) }
-.badge-assigned { position:absolute; left:0; top:0; bottom:0; right:0; display:flex; align-items:center; justify-content:center; color: rgba(239,68,68,0.9); background: rgba(20,10,30,0.55); font-size:9px; letter-spacing:0.5px; border-radius:6px; z-index:2; backdrop-filter:blur(1px) }
+.badge-priority { color: var(--color-gold); background: var(--glass) }
+.badge-assigned { position:absolute; left:0; top:0; bottom:0; right:0; display:flex; align-items:center; justify-content:center; color: rgba(239,68,68,0.9); background: var(--panel-bg); font-size:9px; letter-spacing:0.5px; border-radius:6px; z-index:2; backdrop-filter:blur(1px) }
 .badge-selected { color: var(--color-yellow); font-size:10px; flex-shrink:0 }
+.badge-ilvl-warn { font-size:12px; flex-shrink:0; filter:saturate(2); animation: pulse-warn 1.5s infinite }
+@keyframes pulse-warn { 0%,100%{opacity:1} 50%{opacity:0.5} }
 .candidate-select { padding:4px 8px; border-radius:6px; border:1px solid var(--border); background:var(--select-bg); color:var(--text); font-size:11px; width:100%; margin-top:2px }

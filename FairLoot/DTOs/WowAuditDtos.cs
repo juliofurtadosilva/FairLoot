@@ -25,6 +25,7 @@ namespace FairLoot.DTOs
         public string Difficulty { get; set; } = string.Empty;
         public double TotalPercentage { get; set; }
         public int TotalAbsolute { get; set; }
+        public bool HasSimcReport { get; set; }
         public List<EncounterSummary> Encounters { get; set; } = new List<EncounterSummary>();
     }
 

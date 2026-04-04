@@ -14,7 +14,7 @@ export default function Register() {
   const handle = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      const res = await register(guildName, server, email, password, wowauditKey || undefined)
+      const res = await register({ guildName, server, email, password, wowauditKey: wowauditKey || undefined })
       if (res?.token) {
         navigate('/control')
       } else if (res?.message) {

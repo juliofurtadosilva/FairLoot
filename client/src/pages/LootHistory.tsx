@@ -2,8 +2,10 @@ import React, { useEffect, useState, useMemo } from 'react'
 import api from '../services/api'
 import { useApp } from '../context/AppContext'
 import Spinner from '../components/Spinner'
+import Skeleton from '../components/Skeleton'
+import EmptyState from '../components/EmptyState'
 import './LootHistory.scss'
-import { isDemoMode, getDemoLootHistory, removeDemoLootHistory, getDemoWishlistSummary, getDemoCharacters, getDemoGuild, addDemoLootHistory } from '../services/demoData'
+import { isDemoMode, getDemoLootHistory, removeDemoLootHistory, deleteDemoLootHistory, getDemoWishlistSummary, getDemoCharacters, getDemoGuild, addDemoLootHistory } from '../services/demoData'
 import { getBossImageUrl } from '../services/bossMap'
 
 type LootDrop = {
@@ -46,7 +48,7 @@ export default function LootHistory() {
   const [error, setError] = useState<string | null>(null)
   const [initialLoading, setInitialLoading] = useState(true)
   const [isAdmin, setIsAdmin] = useState(false)
-  const { t, lang } = useApp()
+  const { t, lang, showConfirm, showAlert } = useApp()
 
   // filters
   const [filterPlayer, setFilterPlayer] = useState('')
@@ -54,12 +56,20 @@ export default function LootHistory() {
   const [filterDate, setFilterDate] = useState('')
   const [showReverted, setShowReverted] = useState(true)
 
+  // season selector
+  const [seasons, setSeasons] = useState<{ id: string; name: string; startedAt: string; endedAt: string; drops?: any[] }[]>([])
+  const [selectedSeason, setSelectedSeason] = useState<string>('current')
+
   // redistribute panel
   const [redistributeInfo, setRedistributeInfo] = useState<RedistributeInfo | null>(null)
   const [redistCandidates, setRedistCandidates] = useState<Candidate[]>([])
   const [redistSelected, setRedistSelected] = useState('')
   const [redistLoading, setRedistLoading] = useState(false)
   const [redistSingleUpgrade, setRedistSingleUpgrade] = useState(false)
+
+  // pagination
+  const PAGE_SIZE = 20
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
 
   // icon cache
   const [iconMap, setIconMap] = useState<Record<number, string>>({})
@@ -78,18 +88,40 @@ export default function LootHistory() {
     } catch {}
   }
 
-  const fetchHistory = async () => {
+  const fetchSeasons = async () => {
     try {
       if (isDemoMode()) {
-        const h = getDemoLootHistory()
+        const saved = sessionStorage.getItem('demoSeasons')
+        setSeasons(saved ? JSON.parse(saved) : [])
+      } else {
+        const r = await api.get('/api/guild/seasons')
+        setSeasons(r.data || [])
+      }
+    } catch {}
+  }
+
+  const fetchHistory = async (seasonId?: string) => {
+    try {
+      if (isDemoMode()) {
+        let h: any[]
+        if (seasonId && seasonId !== 'current') {
+          // load archived season drops
+          const saved = sessionStorage.getItem('demoSeasons')
+          const allSeasons = saved ? JSON.parse(saved) : []
+          const season = allSeasons.find((s: any) => s.id === seasonId)
+          h = season?.drops || []
+        } else {
+          h = getDemoLootHistory()
+        }
         setDrops(h)
         setIsAdmin(true)
         // resolve icons for demo history
         const ids = h.map((d: any) => d.itemId).filter((id: any) => id != null) as number[]
         if (ids.length > 0) resolveIcons(ids)
       } else {
+        const url = seasonId && seasonId !== 'current' ? `/api/loot/history?seasonId=${seasonId}` : '/api/loot/history'
         const [r, me] = await Promise.all([
-          api.get('/api/loot/history'),
+          api.get(url),
           api.get('/api/auth/me').catch(() => null),
         ])
         const data = r.data || []
@@ -106,7 +138,14 @@ export default function LootHistory() {
     }
   }
 
-  useEffect(() => { fetchHistory() }, [])
+  useEffect(() => { fetchSeasons(); fetchHistory() }, [])
+
+  // reload history when season changes
+  useEffect(() => {
+    if (!initialLoading) {
+      fetchHistory(selectedSeason)
+    }
+  }, [selectedSeason])
 
   const getIcon = (d: LootDrop) => d.icon || (d.itemId ? iconMap[d.itemId] : undefined)
 
@@ -188,7 +227,7 @@ export default function LootHistory() {
   }
 
   const undo = async (id: string) => {
-    if (!confirm(t('history.undoConfirm'))) return
+    if (!(await showConfirm(t('history.undoConfirm')))) return
     try {
       let info: RedistributeInfo
       if (isDemoMode()) {
@@ -256,7 +295,7 @@ export default function LootHistory() {
         setRedistLoading(false)
       }
     } catch (err: any) {
-      alert(err?.response?.data || t('history.errorUndo'))
+      showAlert(err?.response?.data || t('history.errorUndo'))
     }
   }
 
@@ -294,7 +333,7 @@ export default function LootHistory() {
       setRedistSelected('')
     } catch (e) {
       console.error(e)
-      alert(t('loot.distributeError'))
+      showAlert(t('loot.distributeError'))
     }
   }
 
@@ -319,9 +358,29 @@ export default function LootHistory() {
     })
   }, [drops, filterPlayer, filterBoss, filterDate, showReverted])
 
+  // Reset pagination when filters change
+  useEffect(() => { setVisibleCount(PAGE_SIZE) }, [filterPlayer, filterBoss, filterDate, showReverted])
+
+  const paginated = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount])
+  const hasMore = visibleCount < filtered.length
+
   const formatDate = (iso: string) => {
     const d = new Date(iso)
     return d.toLocaleString(lang === 'pt' ? 'pt-BR' : 'en-US', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })
+  }
+
+  const deleteRecord = async (id: string) => {
+    if (!(await showConfirm(t('history.deleteConfirm'), true))) return
+    try {
+      if (isDemoMode()) {
+        deleteDemoLootHistory(id)
+      } else {
+        await api.delete(`/api/loot/${id}`)
+      }
+      setDrops(prev => prev.filter(d => d.id !== id))
+    } catch (err: any) {
+      showAlert(err?.response?.data || 'Error deleting record')
+    }
   }
 
   const upgradeCandidates = redistCandidates.filter(c => c.itemPercentage > 0)
@@ -338,12 +397,23 @@ export default function LootHistory() {
       <div className="card tab-card" style={{ padding: '16px 20px' }}>
         <h3 style={{ margin: '0 0 12px', fontSize: 17 }}>{t('history.title')}</h3>
         {error && <div style={{ color: '#ef4444', marginBottom: 8 }}>{error}</div>}
-        {initialLoading && <Spinner size={40} />}
+        {initialLoading && <Skeleton count={5} />}
 
         {!initialLoading && (
           <>
             {/* Filter bar */}
             <div className="lh-filter-bar">
+              {/* Season selector */}
+              <select
+                value={selectedSeason}
+                onChange={e => setSelectedSeason(e.target.value)}
+                className="lh-select lh-season-select"
+              >
+                <option value="current">🏆 {t('history.currentSeason')}</option>
+                {seasons.map(s => (
+                  <option key={s.id} value={s.id}>📁 {s.name}</option>
+                ))}
+              </select>
               <input
                 type="text"
                 value={filterPlayer}
@@ -374,14 +444,14 @@ export default function LootHistory() {
               </label>
             </div>
 
-            {filtered.length === 0 && <div className="lh-no-records">{t('history.noRecords')}</div>}
+            {filtered.length === 0 && <EmptyState icon="📭" message={t('history.noRecords')} />}
 
             {/* Grid of cards grouped by date */}
             <div className="lh-groups">
               {(() => {
                 const grouped = ((): Array<[string, LootDrop[]]> => {
                   const m = new Map<string, LootDrop[]>()
-                  for (const d of filtered) {
+                  for (const d of paginated) {
                     const key = new Date(d.createdAt).toLocaleDateString()
                     const arr = m.get(key) || []
                     arr.push(d)
@@ -417,10 +487,20 @@ export default function LootHistory() {
                         const reverted = !!d.isReverted
                         const isTransmog = !d.assignedTo
                         const icon = getIcon(d)
+                        const tooltip = [
+                          `${d.itemName}`,
+                          `${t('loot.difficulty')}: ${d.difficulty}`,
+                          d.assignedTo ? `${t('history.to')} ${d.assignedTo}` : t('history.transmog'),
+                          d.awardValue ? `${t('history.value')} +${Number(d.awardValue).toFixed(1)} pts` : null,
+                          d.note ? `${t('history.note')} ${d.note}` : null,
+                          `${t('history.at')} ${formatDate(d.createdAt)}`,
+                          reverted ? `↩ ${t('history.reverted')} ${d.revertedAt ? formatDate(d.revertedAt) : ''}` : null,
+                        ].filter(Boolean).join('\n')
                         return (
                                 <div
                                   key={d.id}
                                   className={`card lh-card ${reverted ? 'reverted' : ''}`}
+                                  title={tooltip}
                                 >
                             {/* Item header */}
                             <div className="lh-item-header">
@@ -436,6 +516,13 @@ export default function LootHistory() {
                               </div>
                               {reverted && (
                                 <span className="lh-reverted-label">{t('history.reverted')}</span>
+                              )}
+                              {isAdmin && reverted && (
+                                <button
+                                  className="lh-delete-btn"
+                                  onClick={() => deleteRecord(d.id)}
+                                  title={t('history.delete')}
+                                >✕</button>
                               )}
                             </div>
 
@@ -481,6 +568,18 @@ export default function LootHistory() {
                 ))
               })()}
             </div>
+
+            {/* Load more */}
+            {hasMore && (
+              <div className="lh-load-more-row">
+                <button className="lh-load-more-btn" onClick={() => setVisibleCount(v => v + PAGE_SIZE)}>
+                  {t('history.loadMore')}
+                </button>
+                <span className="lh-load-more-count">
+                  {t('history.showing')} {Math.min(visibleCount, filtered.length)} {t('history.of')} {filtered.length}
+                </span>
+              </div>
+            )}
           </>
         )}
       </div>

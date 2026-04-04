@@ -1,0 +1,424 @@
+/* Home page styles */
+
+.home-page{
+  min-height:100vh;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:0;
+  overflow:hidden;
+  position:relative;
+}
+
+.home-controls{
+  position:absolute;
+  top:16px;
+  right:24px;
+  display:flex;
+  gap:8px;
+  z-index:10;
+}
+
+.home-lang-btn{
+  font-size:12px;
+  padding:6px 10px;
+  font-weight:700;
+  border-radius:8px;
+  border:1px solid var(--border);
+  background:var(--surface);
+  color:var(--text);
+  cursor:pointer;
+}
+
+.home-lateral-left{
+  flex:0 0 280px;
+  height:420px;
+  border-radius:16px 0 0 16px;
+  background-size:cover;
+  background-position:center;
+  background-repeat:no-repeat;
+}
+
+.home-lateral-right{
+  flex:0 0 280px;
+  height:420px;
+  border-radius:0 16px 16px 0;
+  background-size:cover;
+  background-position:center;
+  background-repeat:no-repeat;
+}
+
+.home-center-card{
+  background:linear-gradient(180deg, var(--surface), var(--surface-end));
+  border:1px solid var(--border);
+  box-shadow:0 8px 40px rgba(0,0,0,0.3);
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:16px;
+  z-index:2;
+  position:relative;
+}
+
+/* Shared text styles */
+.home-hint{
+  color:var(--muted);
+  font-size:14px;
+  text-align:center;
+  margin:0;
+  line-height:1.5;
+}
+
+.home-error{
+  color:#ef4444;
+  font-size:13px;
+  text-align:center;
+}
+
+.home-back-btn{
+  background:none;
+  border:none;
+  color:var(--accent);
+  cursor:pointer;
+  font-size:13px;
+}
+
+.home-loading{
+  color:var(--muted);
+  font-size:13px;
+}
+
+/* HOME view buttons */
+.home-btn-group{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  width:100%;
+  margin-top:8px;
+}
+
+.home-btn-primary{
+  width:100%;
+  padding:10px 0;
+  font-size:15px;
+  font-weight:600;
+  border-radius:8px;
+  border:1px solid rgba(var(--accent-rgb),0.4);
+  background:rgba(var(--accent-rgb),0.14);
+  color:var(--text);
+  cursor:pointer;
+}
+
+.home-btn-secondary{
+  width:100%;
+  padding:10px 0;
+  font-size:15px;
+  font-weight:600;
+  border-radius:8px;
+  border:1px solid var(--border);
+  background:transparent;
+  color:var(--text);
+  cursor:pointer;
+}
+
+.home-btn-demo{
+  width:100%;
+  padding:10px 0;
+  font-size:13px;
+  font-weight:600;
+  border-radius:8px;
+  border:1px solid rgba(250,204,21,0.35);
+  background:transparent;
+  color:#facc15;
+  cursor:pointer;
+}
+
+.home-demo-desc{
+  font-size:11px;
+  color:var(--muted);
+  text-align:center;
+}
+
+/* Battle.net button */
+.home-btn-bnet{
+  width:100%;
+  padding:10px 0;
+  font-size:15px;
+  font-weight:600;
+  border-radius:8px;
+  background:linear-gradient(135deg, #006aff 0%, #0050cc 100%);
+  border:1px solid #006aff;
+  color:#fff;
+  cursor:pointer;
+}
+
+/* Region select row */
+.home-region-row{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  width:100%;
+}
+
+.home-region-label{
+  font-size:13px;
+  color:var(--muted);
+  white-space:nowrap;
+}
+
+.home-region-select{
+  width:100%;
+  box-sizing:border-box;
+  padding:6px 8px;
+  border-radius:6px;
+  border:1px solid var(--border);
+  background:var(--surface);
+  color:var(--text);
+}
+
+/* BNET-REGISTER view */
+.home-bnet-logo{
+  position:fixed;
+  top:6%;
+  transform:translateY(-50%);
+  width:120px;
+  object-fit:contain;
+  z-index:20;
+  pointer-events:none;
+}
+
+.home-char-list{
+  width:100%;
+  flex:1;
+  overflow-y:auto;
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+
+.home-char-item{
+  padding:8px 10px;
+  border-radius:6px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  font-size:13px;
+}
+
+.home-char-item--selected{
+  border:1px solid rgba(var(--accent-rgb),0.6);
+  background:rgba(var(--accent-rgb),0.1);
+}
+
+.home-char-item--default{
+  border:1px solid var(--border);
+  background:transparent;
+}
+
+.home-char-item--disabled{
+  cursor:not-allowed;
+  opacity:0.4;
+}
+
+.home-char-detail{
+  color:var(--muted);
+  margin-left:6px;
+}
+
+.home-char-detail-sm{
+  color:var(--muted);
+  margin-left:4px;
+}
+
+.home-char-right{
+  display:flex;
+  flex-direction:column;
+  align-items:flex-end;
+  gap:2px;
+}
+
+.home-char-guild{
+  font-size:11px;
+  color:var(--muted);
+}
+
+.home-char-registered{
+  font-size:10px;
+  color:#ef4444;
+  font-weight:600;
+}
+
+.home-char-rank{
+  font-size:10px;
+  font-weight:600;
+}
+
+.home-no-chars{
+  color:#ef4444;
+  font-size:13px;
+  text-align:center;
+  padding:12px;
+}
+
+/* Guild info box */
+.home-guild-info{
+  width:100%;
+  padding:8px 10px;
+  border-radius:6px;
+  background:rgba(var(--accent-rgb),0.06);
+  border:1px solid var(--border);
+  font-size:12px;
+  line-height:1.5;
+}
+
+.home-guild-faction{
+  color:var(--muted);
+}
+
+.home-guild-checking{
+  color:var(--muted);
+}
+
+.home-guild-exists{
+  color:#facc15;
+  margin-top:4px;
+}
+
+.home-guild-new{
+  color:#22c55e;
+  margin-top:4px;
+}
+
+.home-guild-denied{
+  color:#ef4444;
+  margin-top:4px;
+}
+
+/* Registration form */
+.home-reg-form{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  width:100%;
+}
+
+.home-battletag{
+  font-size:12px;
+  color:var(--muted);
+  text-align:center;
+}
+
+.home-field{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+
+.home-field-label{
+  font-size:13px;
+  color:var(--muted);
+}
+
+.home-field-input{
+  width:100%;
+  box-sizing:border-box;
+}
+
+.home-btn-submit{
+  width:100%;
+  padding:10px 0;
+  font-size:15px;
+  font-weight:600;
+  border-radius:8px;
+  border:1px solid rgba(var(--accent-rgb),0.4);
+  background:rgba(var(--accent-rgb),0.14);
+  color:var(--text);
+  cursor:pointer;
+  margin-top:4px;
+}
+
+/* BNET-LOGIN-SELECT view */
+.home-account-list{
+  width:100%;
+  max-height:240px;
+  overflow-y:auto;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+
+.home-account-item{
+  padding:12px 14px;
+  border-radius:8px;
+  border:1px solid var(--border);
+  background:transparent;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  font-size:13px;
+  transition:border-color 0.15s;
+}
+
+.home-account-item:hover{
+  border-color:rgba(var(--accent-rgb),0.5);
+}
+
+.home-account-item--disabled{
+  cursor:not-allowed;
+  opacity:0.45;
+}
+
+.home-account-item--disabled:hover{
+  border-color:var(--border);
+}
+
+.home-account-role{
+  color:var(--muted);
+  margin-left:6px;
+  font-size:12px;
+}
+
+.home-account-info{
+  font-size:11px;
+  color:var(--muted);
+  text-align:right;
+}
+
+.home-account-pending{
+  color:#facc15;
+  font-weight:600;
+  margin-top:2px;
+}
+
+/* PENDING view */
+.home-pending-icon{
+  font-size:48px;
+  text-align:center;
+}
+
+.home-pending-title{
+  font-size:16px;
+  font-weight:600;
+  color:var(--text);
+  text-align:center;
+}
+
+.home-pending-box{
+  width:100%;
+  padding:12px 14px;
+  border-radius:8px;
+  background:rgba(250,204,21,0.08);
+  border:1px solid rgba(250,204,21,0.25);
+  font-size:13px;
+  color:#facc15;
+  text-align:center;
+  line-height:1.6;
+}
+
+.home-pending-hint{
+  font-size:12px;
+  color:var(--muted);
+  text-align:center;
+  line-height:1.5;
+}

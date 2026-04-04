@@ -5,6 +5,8 @@ using FairLoot.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace FairLoot.Controllers
 {
@@ -14,11 +16,14 @@ namespace FairLoot.Controllers
     {
         private readonly AppDbContext _context;
         private readonly WowAuditService _wow;
+        private readonly ILogger<GuildController> _logger;
 
         public GuildController(AppDbContext context, WowAuditService wow)
         {
             _context = context;
             _wow = wow;
+            // logger added for better error diagnostics
+            _logger = NullLogger<GuildController>.Instance;
         }
 
         // GET api/guild/members/pending
@@ -234,6 +239,85 @@ namespace FairLoot.Controllers
 
             await _context.SaveChangesAsync();
             return Ok(user!.Guild);
+        }
+
+        // GET api/guild/seasons
+        [HttpGet("seasons")]
+        public async Task<IActionResult> GetSeasons()
+        {
+            try
+            {
+                var (user, error) = await GetAuthenticatedUserWithGuildAsync(_context);
+                if (error != null) return error;
+
+                var seasons = await _context.Seasons
+                    .Where(s => s.GuildId == user!.GuildId)
+                    .OrderByDescending(s => s.EndedAt)
+                    .Select(s => new { s.Id, s.Name, s.StartedAt, s.EndedAt })
+                    .ToListAsync();
+                return Ok(seasons);
+            }
+            catch (Exception ex)
+            {
+                // log the exception but return an empty list to avoid breaking the frontend flow
+                try { _logger.LogError(ex, "GetSeasons failed"); } catch {}
+                return Ok(new List<object>());
+            }
+        }
+
+        // POST api/guild/season/finalize
+        [HttpPost("season/finalize")]
+        public async Task<IActionResult> FinalizeSeason()
+        {
+            var (user, error) = await GetAuthenticatedAdminAsync(_context);
+            if (error != null) return error;
+
+            var guildId = user!.GuildId;
+
+            // find the last season end to determine current season start
+            var lastSeason = await _context.Seasons
+                .Where(s => s.GuildId == guildId)
+                .OrderByDescending(s => s.EndedAt)
+                .FirstOrDefaultAsync();
+
+            var seasonStart = lastSeason?.EndedAt ?? DateTime.MinValue;
+
+            // count loot in current season to validate
+            var currentDrops = await _context.LootDrops
+                .Where(d => d.GuildId == guildId && !d.IsReverted && d.CreatedAt > seasonStart)
+                .CountAsync();
+
+            if (currentDrops == 0)
+                return BadRequest("Nenhum loot na season atual para arquivar.");
+
+            var seasonNumber = (lastSeason != null)
+                ? int.Parse(lastSeason.Name.Replace("Season ", "")) + 1
+                : 1;
+
+            var season = new Domain.Season
+            {
+                Id = Guid.NewGuid(),
+                GuildId = guildId,
+                Name = $"Season {seasonNumber}",
+                StartedAt = seasonStart == DateTime.MinValue
+                    ? await _context.LootDrops
+                        .Where(d => d.GuildId == guildId && !d.IsReverted)
+                        .MinAsync(d => d.CreatedAt)
+                    : seasonStart,
+                EndedAt = DateTime.UtcNow,
+            };
+            _context.Seasons.Add(season);
+
+            // reset all character scores to 0
+            var chars = await _context.Characters
+                .Where(c => c.GuildId == guildId)
+                .ToListAsync();
+            foreach (var c in chars)
+                c.Score = 0;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new { season.Id, season.Name, season.StartedAt, season.EndedAt, dropsArchived = currentDrops });
         }
 
         // DELETE api/guild

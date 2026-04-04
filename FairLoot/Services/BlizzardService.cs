@@ -22,6 +22,9 @@ namespace FairLoot.Services
             _clientSecret = config["Blizzard:ClientSecret"];
         }
 
+        /// <summary>Get the equipped item level for a character via the Blizzard Profile API.</summary>
+        // Character item-level fetch removed — feature disabled
+
         public bool HasCredentials() => !string.IsNullOrEmpty(_clientId) && !string.IsNullOrEmpty(_clientSecret);
 
         private async Task<bool> EnsureTokenAsync()

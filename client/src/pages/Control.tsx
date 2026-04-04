@@ -8,8 +8,9 @@ import miniLogoImg from '../assets/mini_logo.png'
 
 export default function Control() {
   const navigate = useNavigate()
-  const { t, theme, toggleTheme, lang, setLang } = useApp()
+  const { t, theme, setTheme, lang, setLang } = useApp()
   const [role, setRole] = useState<string | null>(null)
+  const [pendingCount, setPendingCount] = useState(0)
   const demo = isDemoMode()
 
   useEffect(() => {
@@ -17,7 +18,13 @@ export default function Control() {
       setRole('Admin')
       return
     }
-    api.get('/api/auth/me').then(r => setRole(r.data?.role || null)).catch(() => {})
+    api.get('/api/auth/me').then(r => {
+      const userRole = r.data?.role || null
+      setRole(userRole)
+      if (userRole === 'Admin') {
+        api.get('/api/guild/members/pending').then(p => setPendingCount((p.data || []).length)).catch(() => {})
+      }
+    }).catch(() => {})
   }, [])
 
   const isAdmin = role === 'Admin'
@@ -40,9 +47,9 @@ export default function Control() {
     <div className="control-shell">
       <nav className="control-tabs">
         <div className="nav-group nav-group--left">
-          {isAdmin && <NavLink className={({ isActive }) => isActive ? 'tab active' : 'tab'} to="loot">{t('nav.loot')}</NavLink>}
-          <NavLink className={({ isActive }) => isActive ? 'tab active' : 'tab'} to="wishlist">{t('nav.wishlist')}</NavLink>
-          <NavLink className={({ isActive }) => isActive ? 'tab active' : 'tab'} to="history">{t('nav.history')}</NavLink>
+          {isAdmin && <NavLink className={({ isActive }) => isActive ? 'tab active' : 'tab'} to="loot"><span className="tab-icon">🎯</span>{t('nav.loot')}</NavLink>}
+          <NavLink className={({ isActive }) => isActive ? 'tab active' : 'tab'} to="wishlist"><span className="tab-icon">📋</span>{t('nav.wishlist')}</NavLink>
+          <NavLink className={({ isActive }) => isActive ? 'tab active' : 'tab'} to="history"><span className="tab-icon">📜</span>{t('nav.history')}</NavLink>
         </div>
 
         <NavLink to="" end className="nav-logo">
@@ -50,14 +57,20 @@ export default function Control() {
         </NavLink>
 
         <div className="nav-group nav-group--right">
-          <NavLink className={({ isActive }) => isActive ? 'tab active' : 'tab'} to="members">{t('nav.members')}</NavLink>
-          {isAdmin && <NavLink className={({ isActive }) => isActive ? 'tab active' : 'tab'} to="admin">{t('nav.admin')}</NavLink>}
-          <button className="tab logout" onClick={handleLogout}>{t('nav.logout')}</button>
-          <button className="tab" onClick={toggleTheme} title={theme === 'dark' ? 'Light mode' : 'Dark mode'} style={{ fontSize: 16, padding: '6px 10px' }}>
-            {theme === 'dark' ? '☀️' : '🌙'}
-          </button>
-          <button className="tab" onClick={() => setLang(lang === 'pt' ? 'en' : 'pt')} style={{ fontSize: 12, padding: '6px 10px', fontWeight: 700 }}>
-            {lang === 'pt' ? 'EN' : 'PT'}
+          <NavLink className={({ isActive }) => isActive ? 'tab active' : 'tab'} to="members">
+            <span className="tab-icon">👤</span>{t('nav.members')}
+            {isAdmin && pendingCount > 0 && <span className="nav-badge">{pendingCount}</span>}
+          </NavLink>
+          {isAdmin && <NavLink className={({ isActive }) => isActive ? 'tab active' : 'tab'} to="admin"><span className="tab-icon">⚙️</span>{t('nav.admin')}</NavLink>}
+          <div className="nav-separator" />
+          <button className="tab logout" onClick={handleLogout}><span className="tab-icon">🚪</span>{t('nav.logout')}</button>
+          <div className="theme-picker">
+            <button className={`theme-btn${theme === 'dark' ? ' active' : ''}`} onClick={() => setTheme('dark')} title="Dark">Dark</button>
+            <button className={`theme-btn${theme === 'light' ? ' active' : ''}`} onClick={() => setTheme('light')} title="Light">Light</button>
+            <button className={`theme-btn${theme === 'classic' ? ' active' : ''}`} onClick={() => setTheme('classic')} title="WoW Classic">WoW</button>
+          </div>
+          <button className="tab tab-lang" onClick={() => setLang(lang === 'pt' ? 'en' : 'pt')}>
+            <span className="tab-icon">🌐</span>{lang === 'pt' ? 'EN' : 'PT'}
           </button>
         </div>
       </nav>

@@ -8,6 +8,7 @@ import goldOneImg from '../assets/gold_one.png'
 import goldTwoImg from '../assets/gold_two.png'
 import logoImg from '../assets/logo.png'
 import miniLogoImg from '../assets/mini_logo.png'
+import './Home.scss'
 
 type View = 'home' | 'login' | 'register' | 'bnet-register' | 'bnet-login-select' | 'pending'
 
@@ -38,7 +39,7 @@ export default function Home() {
   const token = localStorage.getItem('accessToken')
   if (token) return <Navigate to="/control" replace />
 
-  const { t, theme, toggleTheme, lang, setLang } = useApp()
+  const { t, theme, setTheme, lang, setLang } = useApp()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const [view, setView] = useState<View>('home')
@@ -191,97 +192,40 @@ export default function Home() {
   const [pendingGuildName, setPendingGuildName] = useState('')
 
   const inputStyle: React.CSSProperties = { width: '100%', boxSizing: 'border-box' }
-  const labelStyle: React.CSSProperties = { fontSize: 13, color: 'var(--muted)' }
-  const fieldStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4 }
-  const primaryBtn: React.CSSProperties = {
-    width: '100%', padding: '10px 0', fontSize: 15, fontWeight: 600, borderRadius: 8,
-    border: '1px solid rgba(var(--accent-rgb),0.4)', background: 'rgba(var(--accent-rgb),0.14)',
-    color: 'var(--text)', cursor: 'pointer',
-  }
-  const secondaryBtn: React.CSSProperties = {
-    width: '100%', padding: '10px 0', fontSize: 15, fontWeight: 600, borderRadius: 8,
-    border: '1px solid var(--border)', background: 'transparent',
-    color: 'var(--text)', cursor: 'pointer',
-  }
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 0,
-      overflow: 'hidden',
-      position: 'relative',
-    }}>
+    <div className="home-page">
       {/* Top-right controls */}
-      <div style={{
-        position: 'absolute',
-        top: 16,
-        right: 24,
-        display: 'flex',
-        gap: 8,
-        zIndex: 10,
-      }}>
-        <button
-          onClick={toggleTheme}
-          title={theme === 'dark' ? 'Light mode' : 'Dark mode'}
-          style={{
-            fontSize: 16, padding: '6px 10px', borderRadius: 8,
-            border: '1px solid var(--border)', background: 'var(--surface)',
-            color: 'var(--text)', cursor: 'pointer',
-          }}
-        >{theme === 'dark' ? '☀️' : '🌙'}</button>
-        <button
-          onClick={() => setLang(lang === 'pt' ? 'en' : 'pt')}
-          style={{
-            fontSize: 12, padding: '6px 10px', fontWeight: 700, borderRadius: 8,
-            border: '1px solid var(--border)', background: 'var(--surface)',
-            color: 'var(--text)', cursor: 'pointer',
-          }}
-        >{lang === 'pt' ? 'EN' : 'PT'}</button>
+      <div className="home-controls">
+        <div className="theme-picker">
+          <button className={`theme-btn${theme === 'dark' ? ' active' : ''}`} onClick={() => setTheme('dark')} title="Dark">Dark</button>
+          <button className={`theme-btn${theme === 'light' ? ' active' : ''}`} onClick={() => setTheme('light')} title="Light">Light</button>
+          <button className={`theme-btn${theme === 'classic' ? ' active' : ''}`} onClick={() => setTheme('classic')} title="WoW Classic">WoW</button>
+        </div>
+        <button onClick={() => setLang(lang === 'pt' ? 'en' : 'pt')} className="home-lang-btn">
+          {lang === 'pt' ? 'EN' : 'PT'}
+        </button>
       </div>
 
       {/* Left image */}
-      <div style={{
-        flex: '0 0 280px',
-        height: 420,
-        borderRadius: '16px 0 0 16px',
-        background: `url(${goldOneImg}) center/cover no-repeat`,
-      }} className="home-lateral" />
+      <div className="home-lateral home-lateral-left" style={{ backgroundImage: `url(${goldOneImg})` }} />
 
       {/* Center card */}
-      <div className={`home-card home-card--${view}`} style={{
-        background: 'linear-gradient(180deg, var(--surface), var(--surface-end))',
-        border: '1px solid var(--border)',
-        boxShadow: '0 8px 40px rgba(0,0,0,0.3)',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 16,
-        zIndex: 2,
-        position: 'relative',
-      }}>
+      <div className={`home-card home-card--${view} home-center-card`}>
         {/* Logo: large+absolute for home/login, small+inline for register */}
         <img src={logoImg} alt="FairLoot" className="home-card__logo" draggable={false} />
 
         {/* ── HOME view ── */}
         {view === 'home' && (
           <>
-            <p style={{ color: 'var(--muted)', fontSize: 14, textAlign: 'center', margin: 0, lineHeight: 1.5 }}>{t('home.subtitle')}</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%', marginTop: 8 }}>
-              <button onClick={() => setView('login')} style={primaryBtn}>{t('home.login')}</button>
-              <button onClick={() => setView('register')} style={secondaryBtn}>{t('home.register')}</button>
-              <button onClick={() => { enterDemoMode(); navigate('/control') }} style={{
-                ...secondaryBtn,
-                borderColor: 'rgba(250,204,21,0.35)',
-                color: '#facc15',
-                fontSize: 13,
-              }}>
+            <p className="home-hint">{t('home.subtitle')}</p>
+            <div className="home-btn-group">
+              <button onClick={() => setView('login')} className="home-btn-primary">{t('home.login')}</button>
+              <button onClick={() => setView('register')} className="home-btn-secondary">{t('home.register')}</button>
+              <button onClick={() => { enterDemoMode(); navigate('/control') }} className="home-btn-demo">
                 🔍 {t('home.demo')}
               </button>
-              <div style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center' }}>{t('home.demoDesc')}</div>
+              <div className="home-demo-desc">{t('home.demoDesc')}</div>
             </div>
           </>
         )}
@@ -289,56 +233,46 @@ export default function Home() {
         {/* ── LOGIN view ── */}
         {view === 'login' && (
           <>
-            <div style={{ fontSize: 14, color: 'var(--muted)', textAlign: 'center' }}>
+            <div className="home-hint">
               {lang === 'pt' ? 'Entre com sua conta Battle.net' : 'Sign in with your Battle.net account'}
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
-              <label style={{ ...labelStyle, whiteSpace: 'nowrap' }}>{lang === 'pt' ? 'Região' : 'Region'}</label>
-              <select value={loginRegion} onChange={e => setLoginRegion(e.target.value)} style={{ ...inputStyle, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)' }}>
+            <div className="home-region-row">
+              <label className="home-region-label">{lang === 'pt' ? 'Região' : 'Region'}</label>
+              <select value={loginRegion} onChange={e => setLoginRegion(e.target.value)} className="home-region-select">
                 <option value="us">US / Latin America</option>
                 <option value="eu">Europe</option>
                 <option value="kr">Korea</option>
                 <option value="tw">Taiwan</option>
               </select>
             </div>
-            <button onClick={handleLoginBnet} style={{
-              ...primaryBtn,
-              background: 'linear-gradient(135deg, #006aff 0%, #0050cc 100%)',
-              border: '1px solid #006aff',
-              color: '#fff',
-            }}>
+            <button onClick={handleLoginBnet} className="home-btn-bnet">
               🎮 {lang === 'pt' ? 'Entrar com Battle.net' : 'Sign in with Battle.net'}
             </button>
-            {loginError && <div style={{ color: '#ef4444', fontSize: 13, textAlign: 'center' }}>{String(loginError)}</div>}
-            <button onClick={() => { setView('home'); setLoginError(null) }} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontSize: 13 }}>← {t('loot.back')}</button>
+            {loginError && <div className="home-error">{String(loginError)}</div>}
+            <button onClick={() => { setView('home'); setLoginError(null) }} className="home-back-btn">← {t('loot.back')}</button>
           </>
         )}
 
         {/* ── REGISTER view (Step 1: Connect with Battle.net) ── */}
         {view === 'register' && (
           <>
-            <div style={{ fontSize: 14, color: 'var(--muted)', textAlign: 'center' }}>
+            <div className="home-hint">
               {lang === 'pt' ? 'Conecte sua conta Battle.net para registrar' : 'Connect your Battle.net account to register'}
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
-              <label style={{ ...labelStyle, whiteSpace: 'nowrap' }}>{lang === 'pt' ? 'Região' : 'Region'}</label>
-              <select value={regRegion} onChange={e => setRegRegion(e.target.value)} style={{ ...inputStyle, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)' }}>
+            <div className="home-region-row">
+              <label className="home-region-label">{lang === 'pt' ? 'Região' : 'Region'}</label>
+              <select value={regRegion} onChange={e => setRegRegion(e.target.value)} className="home-region-select">
                 <option value="us">US / Latin America</option>
                 <option value="eu">Europe</option>
                 <option value="kr">Korea</option>
                 <option value="tw">Taiwan</option>
               </select>
             </div>
-            <button onClick={handleConnectBnet} style={{
-              ...primaryBtn,
-              background: 'linear-gradient(135deg, #006aff 0%, #0050cc 100%)',
-              border: '1px solid #006aff',
-              color: '#fff',
-            }}>
+            <button onClick={handleConnectBnet} className="home-btn-bnet">
               🎮 {lang === 'pt' ? 'Conectar com Battle.net' : 'Connect with Battle.net'}
             </button>
-            {regError && <div style={{ color: '#ef4444', fontSize: 13, textAlign: 'center' }}>{String(regError)}</div>}
-            <button onClick={() => { setView('home'); setRegError(null) }} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontSize: 13 }}>← {t('loot.back')}</button>
+            {regError && <div className="home-error">{String(regError)}</div>}
+            <button onClick={() => { setView('home'); setRegError(null) }} className="home-back-btn">← {t('loot.back')}</button>
           </>
         )}
 
@@ -351,20 +285,14 @@ export default function Home() {
           return (
           <>
             {/* Logo absolute on the left side of the page */}
-            <img src={miniLogoImg} alt="FairLoot" style={{
-              position: 'fixed', top: '6%', transform: 'translateY(-50%)',
-              width: 120, objectFit: 'contain', zIndex: 20, pointerEvents: 'none',
-            }} draggable={false} className="bnet-register-logo" />
+            <img src={miniLogoImg} alt="FairLoot" className="bnet-register-logo home-bnet-logo" draggable={false} />
 
-            <div style={{ fontSize: 14, color: 'var(--muted)' }}>
+            <div className="home-hint">
               {lang === 'pt' ? 'Selecione seu personagem' : 'Select your character'}
             </div>
 
             {/* Character list */}
-            <div style={{
-              width: '100%', flex: 1, overflowY: 'auto',
-              display: 'flex', flexDirection: 'column', gap: 4,
-            }}>
+            <div className="home-char-list">
               {bnetCharacters.filter(c => c.guildName).map((c, i) => {
                 const rl = rankLabel(c.guildRank)
                 const canCreate = c.guildRank !== null && c.guildRank !== undefined && c.guildRank <= 1
@@ -374,29 +302,23 @@ export default function Home() {
                 return (
                 <div key={`${c.realmSlug}-${c.name}`}
                   onClick={() => !alreadyRegistered && setSelectedCharIdx(i)}
-                  style={{
-                    padding: '8px 10px', borderRadius: 6,
-                    cursor: alreadyRegistered ? 'not-allowed' : 'pointer',
-                    opacity: alreadyRegistered ? 0.4 : 1,
-                    border: selectedCharIdx === i ? '1px solid rgba(var(--accent-rgb),0.6)' : '1px solid var(--border)',
-                    background: selectedCharIdx === i ? 'rgba(var(--accent-rgb),0.1)' : 'transparent',
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                    fontSize: 13,
-                  }}>
+                  className={`home-char-item ${selectedCharIdx === i ? 'home-char-item--selected' : 'home-char-item--default'} ${alreadyRegistered ? 'home-char-item--disabled' : ''}`}
+                  style={{ cursor: alreadyRegistered ? 'not-allowed' : 'pointer' }}
+                >
                   <div>
                     <strong>{c.name}</strong>
-                    <span style={{ color: 'var(--muted)', marginLeft: 6 }}>{c.realmName}</span>
-                    <span style={{ color: 'var(--muted)', marginLeft: 4 }}>Lv{c.level}</span>
-                    {c.className && <span style={{ color: 'var(--muted)', marginLeft: 4 }}>{c.className}</span>}
+                    <span className="home-char-detail">{c.realmName}</span>
+                    <span className="home-char-detail-sm">Lv{c.level}</span>
+                    {c.className && <span className="home-char-detail-sm">{c.className}</span>}
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
-                    <span style={{ fontSize: 11, color: 'var(--muted)' }}>⚔️ {c.guildName}</span>
+                  <div className="home-char-right">
+                    <span className="home-char-guild">⚔️ {c.guildName}</span>
                     {alreadyRegistered ? (
-                      <span style={{ fontSize: 10, color: '#ef4444', fontWeight: 600 }}>
+                      <span className="home-char-registered">
                         {lang === 'pt' ? '✓ já registrado' : '✓ already registered'}
                       </span>
                     ) : rl && (
-                      <span style={{ fontSize: 10, color: rl.color, fontWeight: 600 }}>
+                      <span className="home-char-rank" style={{ color: rl.color }}>
                         {rl.badge} {rl.text} {canCreate ? (lang === 'pt' ? '— pode criar' : '— can create') : ''}
                       </span>
                     )}
@@ -405,7 +327,7 @@ export default function Home() {
                 )
               })}
               {bnetCharacters.filter(c => c.guildName).length === 0 && (
-                <div style={{ color: '#ef4444', fontSize: 13, textAlign: 'center', padding: 12 }}>
+                <div className="home-no-chars">
                   {lang === 'pt' ? 'Nenhum personagem com guild encontrado.' : 'No characters with a guild found.'}
                 </div>
               )}
@@ -413,34 +335,30 @@ export default function Home() {
 
             {/* Selected character guild info */}
             {selectedChar && selectedChar.guildName && (
-              <div style={{
-                width: '100%', padding: '8px 10px', borderRadius: 6,
-                background: 'rgba(var(--accent-rgb),0.06)', border: '1px solid var(--border)',
-                fontSize: 12, lineHeight: 1.5,
-              }}>
+              <div className="home-guild-info">
                 <div>⚔️ <strong>{selectedChar.guildName}</strong> — {selectedChar.guildRealmName || selectedChar.realmName}</div>
-                {selectedChar.faction && <div style={{ color: 'var(--muted)' }}>{selectedChar.faction}</div>}
+                {selectedChar.faction && <div className="home-guild-faction">{selectedChar.faction}</div>}
                 {(() => {
                   const rl = rankLabel(selectedChar.guildRank)
                   return rl ? <div style={{ color: rl.color }}>{rl.badge} {rl.text}</div> : null
                 })()}
-                {checkingGuild && <div style={{ color: 'var(--muted)' }}>⏳ {lang === 'pt' ? 'Verificando...' : 'Checking...'}</div>}
+                {checkingGuild && <div className="home-guild-checking">⏳ {lang === 'pt' ? 'Verificando...' : 'Checking...'}</div>}
                 {!checkingGuild && guildExistsInFairloot && (
-                  <div style={{ color: '#facc15', marginTop: 4 }}>
+                  <div className="home-guild-exists">
                     ⚠️ {lang === 'pt'
                       ? 'Guild já existe no FairLoot. Sua conta será Reader, pendente de aprovação.'
                       : 'Guild already exists on FairLoot. Your account will be Reader, pending approval.'}
                   </div>
                 )}
                 {!checkingGuild && !guildExistsInFairloot && selectedChar.guildRank !== null && selectedChar.guildRank !== undefined && selectedChar.guildRank <= 1 && (
-                  <div style={{ color: '#22c55e', marginTop: 4 }}>
+                  <div className="home-guild-new">
                     ✓ {lang === 'pt'
                       ? 'Guild nova! Você será Admin.'
                       : 'New guild! You\'ll be Admin.'}
                   </div>
                 )}
                 {!checkingGuild && !guildExistsInFairloot && selectedChar.guildRank !== null && selectedChar.guildRank !== undefined && selectedChar.guildRank > 1 && (
-                  <div style={{ color: '#ef4444', marginTop: 4 }}>
+                  <div className="home-guild-denied">
                     ✗ {lang === 'pt'
                       ? 'Você não é GM nem Oficial. Apenas rank 0-1 podem criar a guild.'
                       : 'You are not GM or Officer. Only rank 0-1 can create the guild.'}
@@ -451,26 +369,24 @@ export default function Home() {
 
             {/* Registration form */}
             {selectedChar && (
-              <form onSubmit={handleBnetRegister} style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%' }}>
+              <form onSubmit={handleBnetRegister} className="home-reg-form">
                 {bnetBattleTag && (
-                  <div style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center' }}>
-                    🏷️ {bnetBattleTag}
-                  </div>
+                  <div className="home-battletag">🏷️ {bnetBattleTag}</div>
                 )}
                 {canCreate && (
-                  <div style={fieldStyle}>
-                    <label style={labelStyle}>WowAudit API Key ({lang === 'pt' ? 'opcional' : 'optional'})</label>
-                    <input value={regWowauditKey} onChange={e => setRegWowauditKey(e.target.value)} style={inputStyle} />
+                  <div className="home-field">
+                    <label className="home-field-label">WowAudit API Key ({lang === 'pt' ? 'opcional' : 'optional'})</label>
+                    <input value={regWowauditKey} onChange={e => setRegWowauditKey(e.target.value)} className="home-field-input" style={inputStyle} />
                   </div>
                 )}
-                <button type="submit" disabled={regLoading} style={{ ...primaryBtn, marginTop: 4, opacity: regLoading ? 0.6 : 1 }}>
+                <button type="submit" disabled={regLoading} className="home-btn-submit" style={{ opacity: regLoading ? 0.6 : 1 }}>
                   {regLoading ? '⏳' : t('home.register')}
                 </button>
               </form>
             )}
 
-            {regError && <div style={{ color: '#ef4444', fontSize: 13, textAlign: 'center' }}>{String(regError)}</div>}
-            <button onClick={() => { setView('home'); setRegError(null); setBnetCharacters([]); setSelectedCharIdx(null) }} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontSize: 13 }}>← {t('loot.back')}</button>
+            {regError && <div className="home-error">{String(regError)}</div>}
+            <button onClick={() => { setView('home'); setRegError(null); setBnetCharacters([]); setSelectedCharIdx(null) }} className="home-back-btn">← {t('loot.back')}</button>
           </>
           )
         })()}
@@ -478,14 +394,11 @@ export default function Home() {
         {/* ── BNET-LOGIN-SELECT view (multiple accounts) ── */}
         {view === 'bnet-login-select' && (
           <>
-            <div style={{ fontSize: 14, color: 'var(--muted)', textAlign: 'center' }}>
+            <div className="home-hint">
               {lang === 'pt' ? 'Selecione em qual guild entrar' : 'Select which guild to enter'}
             </div>
 
-            <div style={{
-              width: '100%', maxHeight: 240, overflowY: 'auto',
-              display: 'flex', flexDirection: 'column', gap: 6,
-            }}>
+            <div className="home-account-list">
               {loginAccounts.map(acc => (
                 <div key={acc.userId}
                   onClick={async () => {
@@ -505,29 +418,20 @@ export default function Home() {
                       setLoginSelectLoading(false)
                     }
                   }}
-                  style={{
-                    padding: '12px 14px', borderRadius: 8, cursor: acc.isApproved ? 'pointer' : 'not-allowed',
-                    opacity: acc.isApproved ? 1 : 0.45,
-                    border: '1px solid var(--border)',
-                    background: 'transparent',
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                    fontSize: 13,
-                    transition: 'border-color 0.15s',
-                  }}
-                  onMouseEnter={e => acc.isApproved && (e.currentTarget.style.borderColor = 'rgba(var(--accent-rgb),0.5)')}
-                  onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}
+                  className={`home-account-item ${!acc.isApproved ? 'home-account-item--disabled' : ''}`}
+                  style={{ cursor: acc.isApproved ? 'pointer' : 'not-allowed' }}
                 >
                   <div>
                     <strong>{acc.characterName || '?'}</strong>
-                    <span style={{ color: 'var(--muted)', marginLeft: 6, fontSize: 12 }}>
+                    <span className="home-account-role">
                       {acc.role === 'Admin' ? '🛡️' : '👤'} {acc.role}
                     </span>
                   </div>
-                  <div style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'right' }}>
+                  <div className="home-account-info">
                     <div>⚔️ {acc.guildName}</div>
                     <div>{acc.guildServer}</div>
                     {!acc.isApproved && (
-                      <div style={{ color: '#facc15', fontWeight: 600, marginTop: 2 }}>
+                      <div className="home-account-pending">
                         ⏳ {lang === 'pt' ? 'Pendente' : 'Pending'}
                       </div>
                     )}
@@ -536,48 +440,39 @@ export default function Home() {
               ))}
             </div>
 
-            {loginSelectLoading && <div style={{ color: 'var(--muted)', fontSize: 13 }}>⏳</div>}
-            {loginSelectError && <div style={{ color: '#ef4444', fontSize: 13, textAlign: 'center' }}>{String(loginSelectError)}</div>}
-            <button onClick={() => { setView('home'); setLoginSelectError(null) }} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontSize: 13 }}>← {t('loot.back')}</button>
+            {loginSelectLoading && <div className="home-loading">⏳</div>}
+            {loginSelectError && <div className="home-error">{String(loginSelectError)}</div>}
+            <button onClick={() => { setView('home'); setLoginSelectError(null) }} className="home-back-btn">← {t('loot.back')}</button>
           </>
         )}
 
         {/* ── PENDING view (waiting for admin approval) ── */}
         {view === 'pending' && (
           <>
-            <div style={{ fontSize: 48, textAlign: 'center' }}>⏳</div>
-            <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)', textAlign: 'center' }}>
+            <div className="home-pending-icon">⏳</div>
+            <div className="home-pending-title">
               {lang === 'pt' ? 'Conta criada com sucesso!' : 'Account created successfully!'}
             </div>
-            <div style={{
-              width: '100%', padding: '12px 14px', borderRadius: 8,
-              background: 'rgba(250,204,21,0.08)', border: '1px solid rgba(250,204,21,0.25)',
-              fontSize: 13, color: '#facc15', textAlign: 'center', lineHeight: 1.6,
-            }}>
+            <div className="home-pending-box">
               {lang === 'pt'
                 ? `Sua conta foi criada como Reader na guild "${pendingGuildName}". Você precisa aguardar a aprovação do Admin da guild para acessar o sistema.`
                 : `Your account was created as Reader in "${pendingGuildName}". You need to wait for the guild Admin to approve your access.`}
             </div>
-            <div style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center', lineHeight: 1.5 }}>
+            <div className="home-pending-hint">
               {lang === 'pt'
                 ? 'Peça ao GM ou Admin da sua guild para aprovar sua conta na aba Membros do FairLoot.'
                 : 'Ask your guild GM or Admin to approve your account in the Members tab on FairLoot.'}
             </div>
-            <button onClick={() => { setView('login'); setRegError(null) }} style={primaryBtn}>
+            <button onClick={() => { setView('login'); setRegError(null) }} className="home-btn-primary">
               {lang === 'pt' ? 'Ir para Login' : 'Go to Login'}
             </button>
-            <button onClick={() => { setView('home') }} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontSize: 13 }}>← {t('loot.back')}</button>
+            <button onClick={() => { setView('home') }} className="home-back-btn">← {t('loot.back')}</button>
           </>
         )}
       </div>
 
       {/* Right image */}
-      <div style={{
-        flex: '0 0 280px',
-        height: 420,
-        borderRadius: '0 16px 16px 0',
-        background: `url(${goldTwoImg}) center/cover no-repeat`,
-      }} className="home-lateral" />
+      <div className="home-lateral home-lateral-right" style={{ backgroundImage: `url(${goldTwoImg})` }} />
     </div>
   )
 }

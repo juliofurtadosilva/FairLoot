@@ -1,5 +1,16 @@
 /* Styles for Dashboard outdated section and carousel */
 
+.dash-card { text-align:center; gap:24px }
+.dash-welcome { margin:0; font-size:22px; font-weight:700; color:var(--accent) }
+.dash-subtitle { margin:0; color:var(--muted); font-size:14px; line-height:1.7 }
+
+.dash-features-section { width:100%; text-align:left }
+.dash-features-title { margin:0 0 12px; font-size:15px; font-weight:700; color:var(--accent) }
+
+.carousel-version-row { display:flex; align-items:center; gap:8px; margin-bottom:8px }
+.carousel-version { font-weight:700; font-size:14px; color:var(--color-gold, var(--accent)) }
+.carousel-date { font-size:11px; color:var(--muted) }
+
 .outdated-section { width:100%; text-align:left }
 .outdated-title { margin: 0 0 12px; font-size:15px; font-weight:700; color: #f59e0b }
 .outdated-desc { margin: 0 0 10px; font-size:12px; color: var(--muted); line-height:1.5 }
@@ -30,14 +41,14 @@
   object-fit: cover;
 }
 .outdated-class-icon--empty {
-  background: rgba(255,255,255,0.04);
+  background: var(--panel-bg);
 }
 .outdated-name { font-weight:600; font-size:13px }
 .outdated-bottom { display:flex; align-items:center; justify-content:space-between; gap:8px }
 .outdated-badges { display:flex; gap:6px; flex-wrap:wrap }
 .outdated-days { font-size:11px; color:var(--muted); white-space:nowrap; flex-shrink:0 }
 .badge { font-size:11px; font-weight:700; padding:4px 8px; border-radius:6px; background: rgba(0,0,0,0.15) }
-.badge-diff { background: rgba(255,255,255,0.06); color: var(--muted); text-transform:uppercase; font-weight:700 }
+.badge-diff { background: var(--glass); color: var(--muted); text-transform:uppercase; font-weight:700 }
 .badge-diff--mythic { color: var(--color-mythic) }
 .badge-diff--heroic { color: var(--color-heroic) }
 .badge-diff--normal { color: var(--color-green) }
@@ -56,7 +67,7 @@
 
 .carousel-btn { background: transparent; border: 1px solid var(--border); color: var(--muted); padding: 6px 10px; border-radius:8px; cursor:pointer }
 .carousel-dots { display:flex; gap:6px; justify-content:center; margin-top:8px }
-.dot { width:10px; height:10px; border-radius:50%; background: rgba(255,255,255,0.06); border: none; cursor: pointer }
+.dot { width:10px; height:10px; border-radius:50%; background: var(--glass); border: none; cursor: pointer }
 .dot.active { background: var(--accent) }
 
 /* Feature cards grid */
@@ -95,4 +106,107 @@
 }
 @media (max-width: 550px) {
   .features-grid { grid-template-columns: 1fr }
+}
+
+/* Loot distribution mini chart */
+.dash-chart-section { width:100%; text-align:left }
+.dash-chart-title { margin:0 0 4px; font-size:15px; font-weight:700; color:var(--accent) }
+.dash-chart-since { font-size:11px; color:var(--muted); margin-bottom:10px }
+.dash-chart { display:flex; flex-direction:column; gap:6px; width:100% }
+
+.dash-chart-row {
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+
+.dash-chart-name {
+  width:110px;
+  flex-shrink:0;
+  font-size:12px;
+  font-weight:600;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  text-align:right;
+}
+
+.dash-chart-bar-track {
+  flex:1;
+  height:18px;
+  background:var(--glass);
+  border-radius:4px;
+  overflow:hidden;
+}
+
+.dash-chart-bar {
+  height:100%;
+  border-radius:4px;
+  animation: barGrow 0.5s ease both;
+  min-width: 2px;
+}
+
+@keyframes barGrow {
+  from { width: 0 !important; }
+}
+
+.dash-chart-value {
+  width:28px;
+  flex-shrink:0;
+  font-size:12px;
+  font-weight:700;
+  color:var(--muted);
+  text-align:left;
+}
+
+/* Timeline */
+.dash-timeline {
+  margin-top:16px;
+  width:100%;
+}
+
+.dash-timeline-title {
+  font-size:12px;
+  font-weight:600;
+  color:var(--muted);
+  margin-bottom:8px;
+}
+
+.dash-timeline-track {
+  display:flex;
+  align-items:flex-end;
+  gap:4px;
+  width:100%;
+  overflow-x:auto;
+  padding-bottom:4px;
+}
+
+.dash-timeline-point {
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:4px;
+  min-width:32px;
+  flex:1;
+  cursor:default;
+}
+
+.dash-timeline-bar {
+  width:100%;
+  max-width:28px;
+  background:var(--accent);
+  border-radius:3px 3px 0 0;
+  opacity:0.7;
+  transition: opacity 0.2s;
+}
+
+.dash-timeline-point:hover .dash-timeline-bar {
+  opacity:1;
+}
+
+.dash-timeline-label {
+  font-size:9px;
+  color:var(--muted);
+  white-space:nowrap;
+  text-align:center;
 }

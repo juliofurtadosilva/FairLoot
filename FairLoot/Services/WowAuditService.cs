@@ -198,6 +198,7 @@ namespace FairLoot.Services
                                 if (c.TryGetProperty("class", out var cls) && cls.ValueKind == JsonValueKind.String) info.Class = cls.GetString() ?? string.Empty;
                                 else if (c.TryGetProperty("class_name", out var cls2) && cls2.ValueKind == JsonValueKind.String) info.Class = cls2.GetString() ?? string.Empty;
                                 else if (c.TryGetProperty("player_class", out var cls3) && cls3.ValueKind == JsonValueKind.String) info.Class = cls3.GetString() ?? string.Empty;
+                                // equipped item level not stored — feature disabled
                                 list.Add(info);
                             }
                             else if (c.ValueKind == JsonValueKind.String)
@@ -215,6 +216,7 @@ namespace FairLoot.Services
                                 info.Realm = c.TryGetProperty("realm", out var realm) ? realm.GetString() ?? string.Empty : string.Empty;
                                 if (c.TryGetProperty("class", out var cls) && cls.ValueKind == JsonValueKind.String) info.Class = cls.GetString() ?? string.Empty;
                                 else if (c.TryGetProperty("class_name", out var cls2) && cls2.ValueKind == JsonValueKind.String) info.Class = cls2.GetString() ?? string.Empty;
+                                // equipped item level not stored — feature disabled
                                 list.Add(info);
                             }
                             else if (c.ValueKind == JsonValueKind.String)
@@ -452,9 +454,22 @@ namespace FairLoot.Services
                                             if (d.TryGetProperty("wishlist", out var wl) && wl.ValueKind == JsonValueKind.Object)
                                             {
                                                 ds.TotalPercentage = wl.TryGetProperty("total_percentage", out var tp) && tp.ValueKind == JsonValueKind.Number ? tp.GetDouble() : 0;
-                                                ds.TotalAbsolute = wl.TryGetProperty("total_absolute", out var ta) && ta.ValueKind == JsonValueKind.Number ? ta.GetInt32() : 0;
+                                                    ds.TotalAbsolute = wl.TryGetProperty("total_absolute", out var ta) && ta.ValueKind == JsonValueKind.Number ? ta.GetInt32() : 0;
 
-                                                if (wl.TryGetProperty("encounters", out var encounters) && encounters.ValueKind == JsonValueKind.Array)
+                                                    // check if any spec has a non-null report_uploaded_at (SimC report exists)
+                                                    if (wl.TryGetProperty("report_uploaded_at", out var rua) && rua.ValueKind == JsonValueKind.Object)
+                                                    {
+                                                        foreach (var prop in rua.EnumerateObject())
+                                                        {
+                                                            if (prop.Value.ValueKind == JsonValueKind.String && !string.IsNullOrEmpty(prop.Value.GetString()))
+                                                            {
+                                                                ds.HasSimcReport = true;
+                                                                break;
+                                                            }
+                                                        }
+                                                    }
+
+                                                    if (wl.TryGetProperty("encounters", out var encounters) && encounters.ValueKind == JsonValueKind.Array)
                                                 {
                                                     foreach (var e in encounters.EnumerateArray())
                                                     {
@@ -588,6 +603,7 @@ namespace FairLoot.Services
         public async Task<int> SyncGuildCharactersAsync(AppDbContext db, Guid guildId, string apiKey, CancellationToken cancellationToken = default)
         {
             var summary = await GetGuildWishlistSummaryAsync(apiKey);
+            _logger.LogInformation("SyncGuildCharactersAsync starting for guild {GuildId} - wishlist summary count: {Count}", guildId, summary?.Count ?? 0);
 
             // fetch class info from the characters endpoint (wishlists often lack class data)
             var charInfos = await GetGuildCharactersAsync(apiKey);
@@ -595,6 +611,9 @@ namespace FairLoot.Services
                 .Where(ci => !string.IsNullOrEmpty(ci.Name) && !string.IsNullOrEmpty(ci.Class))
                 .GroupBy(ci => ci.Name)
                 .ToDictionary(g => g.Key, g => g.First().Class);
+
+            // load guild to get realm/region if available
+            var guildEntity = await db.Guilds.FirstOrDefaultAsync(g => g.Id == guildId, cancellationToken);
 
             // track which names are still present in WowAudit
             var activeNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -610,6 +629,8 @@ namespace FairLoot.Services
                 var existing = await db.Characters.FirstOrDefaultAsync(
                     c => c.GuildId == guildId && c.Name == ch.Name, cancellationToken);
 
+                // item-level enrichment disabled
+
                 if (existing == null)
                 {
                     db.Characters.Add(new Character
@@ -620,8 +641,10 @@ namespace FairLoot.Services
                         Class = charClass,
                         Score = 0,
                         IsActive = true,
-                        GuildId = guildId
+                        GuildId = guildId,
+                        // ItemLevel removed — not storing iLevel
                     });
+                    // removed iLevel logging — feature disabled
                 }
                 else
                 {
@@ -630,6 +653,7 @@ namespace FairLoot.Services
                     // only update class if we have a non-empty value
                     if (!string.IsNullOrEmpty(charClass))
                         existing.Class = charClass;
+                    // iLevel updates removed — no item level stored
                 }
                 upserts++;
             }

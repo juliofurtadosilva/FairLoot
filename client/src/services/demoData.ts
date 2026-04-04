@@ -27,10 +27,16 @@ export const getDemoCharacters = (): any[] => {
   if (saved) {
     try {
       const flags = JSON.parse(saved) as Record<string, boolean>
-      return _parsedCharacters!.map(c => ({ ...c, score: c.score ?? 0, isNewPlayer: flags[c.name] ?? false }))
-    } catch {}
-  }
-  return _parsedCharacters!.map(c => ({ ...c, score: c.score ?? 0, isNewPlayer: false }))
+      return _parsedCharacters!.map(c => {
+            const hash = (c.name || '').split('').reduce((acc: number, ch: string) => acc + ch.charCodeAt(0), 0)
+            return { ...c, score: c.score ?? 0, isNewPlayer: flags[c.name] ?? false, itemLevel: c.itemLevel ?? (580 + (hash % 60)) }
+          })
+        } catch {}
+      }
+    return _parsedCharacters!.map(c => {
+        const hash = (c.name || '').split('').reduce((acc: number, ch: string) => acc + ch.charCodeAt(0), 0)
+        return { ...c, score: c.score ?? 0, isNewPlayer: false }
+      })
 }
 
 export const getDemoWishlistRaw = (): any => {
@@ -52,10 +58,14 @@ export const getDemoWishlistSummary = (): any[] => {
       name: inst.name,
       difficulties: (inst.difficulties || []).map((d: any) => {
         const wl = d.wishlist || {}
+        // check if any spec has a non-null report_uploaded_at
+        const rua = wl.report_uploaded_at || {}
+        const hasSimcReport = Object.values(rua).some((v: any) => v != null && v !== '')
         return {
           difficulty: d.difficulty,
           totalPercentage: wl.total_percentage || 0,
           totalAbsolute: wl.total_absolute || 0,
+          hasSimcReport,
           encounters: (wl.encounters || []).map((e: any) => ({
             name: e.name,
             encounterPercentage: e.encounter_percentage || 0,
@@ -132,6 +142,12 @@ export const removeDemoLootHistory = (id: string): any => {
   })
   sessionStorage.setItem('demoLootHistory', JSON.stringify(updated))
   return revertedDrop
+}
+
+export const deleteDemoLootHistory = (id: string) => {
+  const current = getDemoLootHistory()
+  const updated = current.filter((d: any) => d.id !== id)
+  sessionStorage.setItem('demoLootHistory', JSON.stringify(updated))
 }
 
 export const toggleDemoNewPlayer = (name: string) => {

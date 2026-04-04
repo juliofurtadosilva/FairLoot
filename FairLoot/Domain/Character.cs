@@ -13,7 +13,6 @@ namespace FairLoot.Domain
         public bool IsActive { get; set; } = true;
         // flag for new player penalty
         public bool IsNewPlayer { get; set; } = false;
-
         public Guid GuildId { get; set; }
         public Guild? Guild { get; set; }
     }

@@ -16,6 +16,7 @@ namespace FairLoot.Data
         public DbSet<Character> Characters { get; set; }
         public DbSet<LootDrop> LootDrops { get; set; }
         public DbSet<WishlistCache> WishlistCaches { get; set; }
+        public DbSet<Season> Seasons { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -67,6 +68,10 @@ namespace FairLoot.Data
             modelBuilder.Entity<WishlistCache>()
                 .HasIndex(w => w.GuildId)
                 .IsUnique();
+
+            modelBuilder.Entity<Season>().ToTable("seasons");
+            modelBuilder.Entity<Season>()
+                .HasIndex(s => s.GuildId);
         }
     }
 }

@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react'
 import api from '../services/api'
 import { useApp } from '../context/AppContext'
 import Spinner from '../components/Spinner'
-import { isDemoMode, getDemoWishlistSummary, getDemoCharacters, getDemoGuild, getDemoLootHistory, addDemoLootHistory } from '../services/demoData'
+import Skeleton from '../components/Skeleton'
+import { isDemoMode, getDemoWishlistSummary, getDemoGuild, getDemoCharacters, getDemoLootHistory, addDemoLootHistory } from '../services/demoData'
 import { getBossImageUrl } from '../services/bossMap'
 import { getCachedWishlist, setCachedWishlist, WISHLIST_REFRESH_INTERVAL } from '../services/wishlistCache'
 import { getClassNameLocalized, getClassIconUrl, getClassColor } from '../services/classIcons'
@@ -45,7 +46,7 @@ export default function Loot() {
   const [summary, setSummary] = useState<any[]>([])
   const [difficulty, setDifficulty] = useState<'normal' | 'heroic' | 'mythic' | ''>('')
   const [raid, setRaid] = useState<string>('')
-  const { t, lang } = useApp()
+  const { t, lang, theme, showAlert, showToast } = useApp()
   const [boss, setBoss] = useState<string>('')
   const [availableItems, setAvailableItems] = useState<Item[]>([])
   const [selectedItems, setSelectedItems] = useState<(Item & { count: number })[]>([])
@@ -105,6 +106,7 @@ export default function Loot() {
     setReservedMap(newReserved)
     console.log('[assignToIndex] after', { updated, newReserved })
   }
+  // characters/iLevel removed per request
   const [chars, setChars] = useState<any[]>([])
   const [raidMapState, setRaidMapState] = useState<Record<string, Record<string, Record<string, Item[]>>>>({})
   const [bossList, setBossList] = useState<string[]>([])
@@ -112,6 +114,7 @@ export default function Loot() {
   const [isAdmin, setIsAdmin] = useState(false)
   const [loading, setLoading] = useState(false)
   const [initialLoading, setInitialLoading] = useState(true)
+  const [guild, setGuild] = useState<any>(null)
   const [itemNotes, setItemNotes] = useState<Record<number, string>>({})
   const [noteOpenIdx, setNoteOpenIdx] = useState<number | null>(null)
   const [itemNameMap, setItemNameMap] = useState<Record<number, string>>({})
@@ -119,6 +122,15 @@ export default function Loot() {
 
   // Priority color — interpolates from gold (top) to gray (bottom) based on position
   const getPriorityColor = (position: number, total: number) => {
+    if (theme === 'light') {
+      // dark gold (#8B6914) → dark gray (#555555) for light backgrounds
+      if (total <= 1) return '#8B6914'
+      const t = position / (total - 1)
+      const r = Math.round(139 - t * (139 - 85))
+      const g = Math.round(105 - t * (105 - 85))
+      const b = Math.round(20 + t * (85 - 20))
+      return `rgb(${r},${g},${b})`
+    }
     if (total <= 1) return '#FFD700'
     const t = position / (total - 1)
     // gold (#FFD700) → gray (#666666)
@@ -133,6 +145,13 @@ export default function Loot() {
     const min = Math.min(...allPcts)
     const max = Math.max(...allPcts)
     const t = max > min ? (pct - min) / (max - min) : 1
+    if (theme === 'light') {
+      // dark gray (#777) → dark red (#b91c1c) for light backgrounds
+      const r = Math.round(119 + t * (185 - 119))
+      const g = Math.round(119 - t * (119 - 28))
+      const b = Math.round(119 - t * (119 - 28))
+      return `rgb(${r},${g},${b})`
+    }
     // gray (#666666) → red (#ef4444)
     const r = Math.round(102 + t * (239 - 102))
     const g = Math.round(102 - t * (102 - 68))
@@ -212,7 +231,8 @@ export default function Loot() {
           const s = getDemoWishlistSummary()
           setSummary(s)
           setRaidMapState(buildRaidMapFromSummary(s))
-          setChars(getDemoCharacters())
+          // demo characters still used for other demo features but iLevel-specific data removed
+          setGuild(getDemoGuild())
           setInitialLoading(false)
           // resolve icons asynchronously
           resolveIconsForSummary(s).then(updated => {
@@ -235,9 +255,10 @@ export default function Loot() {
         }
 
         // fetch wishlists and characters in parallel (always, to get fresh data)
-        const [wishlistRes, charsRes] = await Promise.all([
+        const [wishlistRes, charsRes, guildRes] = await Promise.all([
           api.get('/api/guild/wowaudit/wishlists').catch(() => null),
           api.get('/api/guild/characters').catch(() => null),
+          api.get('/api/guild').catch(() => null),
         ])
 
         if (wishlistRes) {
@@ -247,8 +268,10 @@ export default function Loot() {
           if (s.length > 0) setCachedWishlist(s)
         }
 
-        if (charsRes) {
-          setChars(charsRes.data || [])
+        // character list fetch omitted — iLevel logic removed
+
+        if (guildRes) {
+          setGuild(guildRes.data)
         }
       } catch (e) {
         console.error(e)
@@ -726,10 +749,10 @@ export default function Loot() {
           createdAt: new Date().toISOString(),
         }))
         addDemoLootHistory(drops)
-        alert(`${drops.length} ${t('loot.distributed')}`)
+        showToast(`${drops.length} ${t('loot.distributed')}`)
       } else {
         const r = await api.post('/api/loot/distribute', { allocations })
-        alert(`${r.data.distributed} ${t('loot.distributed')}`)
+        showToast(`${r.data.distributed} ${t('loot.distributed')}`)
       }
       // reset
       setSelectedItems([])
@@ -741,14 +764,27 @@ export default function Loot() {
       setStep(1)
     } catch (e) {
       console.error(e)
-      alert(t('loot.distributeError'))
+      showAlert(t('loot.distributeError'))
     }
   }
 
   return (
     <div className="tab-content">
       <div className="card tab-card loot-panel loot-panel--container">
-        {initialLoading && <Spinner size={40} />}
+        {initialLoading && <Skeleton count={4} />}
+        {!initialLoading && (
+          <div className="loot-stepper">
+            <div className={`loot-step ${step === 1 ? 'loot-step--active' : 'loot-step--done'}`}>
+              <div className="loot-step-num">{step > 1 ? '✓' : '1'}</div>
+              <span className="loot-step-label">{t('loot.step1Desc')}</span>
+            </div>
+            <div className={`loot-step-line ${step > 1 ? 'loot-step-line--done' : ''}`} />
+            <div className={`loot-step ${step === 2 ? 'loot-step--active' : ''}`}>
+              <div className="loot-step-num">2</div>
+              <span className="loot-step-label">{t('loot.step2Desc')}</span>
+            </div>
+          </div>
+        )}
         {!initialLoading && step === 1 && (
           <div className="loot-root">
             <div className="loot-top-row">
@@ -1027,18 +1063,24 @@ export default function Loot() {
                           {topCandidates.map((c: any, cIdx: number) => {
                             const isSelected = normalizeName(assignments[idx]) === normalizeName(c.characterName)
                             const classIcon = getClassIconUrl(c.class)
-                            const classColor = getClassColor(c.class)
+                            const classColor = getClassColor(c.class, theme)
                             const isAssignedElsewhere = !isAllowDup && assignedElsewhereFromOthers.has(normalizeName(c.characterName)) && !isSelected
                             const prioColor = getPriorityColor(cIdx, topCandidates.length)
                             const allPcts = topCandidates.map((x: any) => Number(x.itemPercentage))
                             const upgrColor = getUpgradeColor(Number(c.itemPercentage), allPcts)
+                            // check iLevel below minimum for selected difficulty
+                            const charData = chars.find((ch: any) => ch.name === c.characterName)
+                            const charIlvl = charData?.itemLevel ?? 0
+                            const minIlvl = difficulty === 'normal' ? (guild?.minIlevelNormal ?? 0) : difficulty === 'heroic' ? (guild?.minIlevelHeroic ?? 0) : difficulty === 'mythic' ? (guild?.minIlevelMythic ?? 0) : 0
+                            const isBelowIlvl = minIlvl > 0 && charIlvl > 0 && charIlvl < minIlvl
                               return (
-                              <button key={c.characterName} className={"candidate-btn" + (isSelected ? ' selected' : '') + (isAssignedElsewhere ? ' assigned-elsewhere' : '')} onClick={() => assignToIndex(idx, c.characterName)} title={`Upgrade: ${Number(c.itemPercentage).toFixed(2)}% | Score: ${Number(c.overallScore).toFixed(2)} | Itens recebidos (30d): ${c.lootReceivedCount} | Priority: ${Number(c.priority).toFixed(4)}${isAssignedElsewhere ? ' | Selecionado em outro item' : ''}`}>
+                              <button key={c.characterName} className={"candidate-btn" + (isSelected ? ' selected' : '') + (isAssignedElsewhere ? ' assigned-elsewhere' : '')} onClick={() => assignToIndex(idx, c.characterName)} title={`Upgrade: ${Number(c.itemPercentage).toFixed(2)}% | Score: ${Number(c.overallScore).toFixed(2)} | Itens recebidos (30d): ${c.lootReceivedCount} | Priority: ${Number(c.priority).toFixed(4)}${charIlvl > 0 ? ` | iLvl: ${charIlvl}` : ''}${isBelowIlvl ? ` ⚠ min ${minIlvl}` : ''}${isAssignedElsewhere ? ' | Selecionado em outro item' : ''}`}>
                                 {isAssignedElsewhere && (<span className="badge badge-assigned">Já selecionado</span>)}
                                 <span className="candidate-name">
                                   {classIcon && <img src={classIcon} alt="" className="candidate-class-icon" />}
-                                  <span style={{ color: classColor }}>{c.characterName}</span>
+                                  <span className="class-color-text" style={{ color: classColor }}>{c.characterName}</span>
                                   {isSelected && <span className="badge badge-selected">✓</span>}
+                                  {isBelowIlvl && <span className="badge badge-ilvl-warn" title={`iLvl ${charIlvl} < ${minIlvl}`}>⚠️</span>}
                                 </span>
                                 <span className="candidate-meta">
                                   <span className="badge badge-upgrade" style={{ color: upgrColor }}>⬆{Number(c.itemPercentage).toFixed(2)}%</span>

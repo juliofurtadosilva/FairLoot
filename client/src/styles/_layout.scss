@@ -31,31 +31,61 @@
 }
 
 [data-theme="light"] {
-  --bg: #e8e0f0;
-  --bg-end: #d8d0e8;
-  --card: rgba(255,255,255,0.55);
-  --text: #1e1638;
-  --muted: #5c5278;
-  --accent: #7c3aed;
-  --accent-rgb: 124,58,237;
-  --glass: rgba(124,58,237,0.07);
-  --surface: rgba(255,255,255,0.50);
-  --surface-end: rgba(255,255,255,0.35);
-  --border: rgba(124,58,237,0.16);
-  --input-bg: rgba(255,255,255,0.65);
-  --scroll-thumb: rgba(124,58,237,0.30);
-  --scroll-track: rgba(124,58,237,0.06);
-  --grad-a: rgba(124,58,237,0.10);
-  --grad-b: rgba(34,211,238,0.08);
-  --panel-bg: rgba(124,58,237,0.06);
-  --panel-text: #1e1638;
-  --select-bg: #ede6f5;
+  --bg: #f0f2f5;
+  --bg-end: #e8eaef;
+  --card: rgba(255,255,255,0.92);
+  --text: #1a1a2e;
+  --muted: #5a5f7a;
+  --accent: #6d28d9;
+  --accent-rgb: 109,40,217;
+  --glass: rgba(109,40,217,0.06);
+  --surface: rgba(255,255,255,0.85);
+  --surface-end: rgba(255,255,255,0.70);
+  --border: rgba(109,40,217,0.14);
+  --input-bg: #ffffff;
+  --scroll-thumb: rgba(109,40,217,0.25);
+  --scroll-track: rgba(109,40,217,0.05);
+  --grad-a: rgba(109,40,217,0.07);
+  --grad-b: rgba(34,211,238,0.05);
+  --panel-bg: rgba(109,40,217,0.04);
+  --panel-text: #1a1a2e;
+  --select-bg: #f5f3fa;
   --color-transmog: #7c3aed;
-  --color-cyan: #0891b2;
-  --color-yellow: #a16207;
-  --color-green: #15803d;
-  --color-heroic: #7e22ce;
+  --color-cyan: #0e7490;
+  --color-yellow: #92400e;
+  --color-green: #166534;
+  --color-heroic: #6b21a8;
   --color-mythic: #c2410c;
+  --color-gold: #92400e;
+}
+
+[data-theme="classic"] {
+  --bg: #0a0e1a;
+  --bg-end: #060a14;
+  --card: #111828;
+  --text: #d4c6a0;
+  --muted: #8a7e60;
+  --accent: #c5a43e;
+  --accent-rgb: 197,164,62;
+  --glass: rgba(197,164,62,0.08);
+  --surface: rgba(197,164,62,0.05);
+  --surface-end: rgba(197,164,62,0.02);
+  --border: rgba(197,164,62,0.20);
+  --input-bg: rgba(0,0,0,0.35);
+  --scroll-thumb: rgba(197,164,62,0.35);
+  --scroll-track: rgba(0,0,0,0.20);
+  --grad-a: rgba(197,164,62,0.10);
+  --grad-b: rgba(80,60,160,0.08);
+  --panel-bg: rgba(0,0,0,0.25);
+  --panel-text: #d4c6a0;
+  --select-bg: #151d30;
+  --color-transmog: #c4b5fd;
+  --color-cyan: #22d3ee;
+  --color-yellow: #ffd100;
+  --color-green: #1eff00;
+  --color-heroic: #a335ee;
+  --color-mythic: #ff8000;
+  --color-gold: #c5a43e;
 }
 
 html, body {
@@ -120,18 +150,18 @@ nav {
 }
 
 .control-tabs {
-  width: min(92vw, 1200px);
+  width: min(96vw, 1360px);
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 14px;
   overflow: visible;
 }
 
 .nav-group {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 
 .nav-group--left {
@@ -142,6 +172,14 @@ nav {
 .nav-group--right {
   flex: 1;
   justify-content: flex-start;
+  gap: 12px;
+}
+
+.nav-separator {
+  width: 1px;
+  height: 24px;
+  background: var(--border);
+  flex-shrink: 0;
 }
 
 .nav-logo {
@@ -174,14 +212,38 @@ nav {
         cursor: pointer;
     }
 
+.tab-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  font-size: 14px;
+  line-height: 1;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
 .control-tabs .tab {
-  padding: 8px 12px;
+  padding: 8px 14px;
   border-radius: 8px;
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text);
   text-decoration: none;
   cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: border-color 0.15s, background 0.15s;
+  line-height: 1;
+}
+
+.control-tabs .tab:hover {
+  border-color: rgba(var(--accent-rgb),0.35);
 }
 
 .control-tabs .tab.active {
@@ -193,6 +255,33 @@ nav {
 .control-tabs .tab.logout {
   background: rgba(249,115,22,0.1);
   border-color: rgba(249,115,22,0.3);
+}
+
+.control-tabs .tab.logout:hover {
+  background: rgba(249,115,22,0.18);
+}
+
+.control-tabs .tab-lang {
+  font-size: 12px;
+  padding: 8px 10px;
+  font-weight: 700;
+}
+
+.nav-badge {
+  background: #ef4444;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  line-height: 1;
+  margin-left: 2px;
+  box-sizing: border-box;
 }
 
 .tab-content {
@@ -209,7 +298,7 @@ nav {
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 24px 28px;
+    padding: 15px;
 }
 
 .tab-card.wishlist-card {
@@ -251,6 +340,35 @@ input {
   color: var(--text);
 }
 
+/* Theme picker — 3 side-by-side buttons */
+.theme-picker {
+  display: inline-flex;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.theme-picker .theme-btn {
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  border: none;
+  border-radius: 0;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  line-height: 1;
+  transition: background 0.15s, color 0.15s;
+  letter-spacing: 0.3px;
+}
+.theme-picker .theme-btn + .theme-btn {
+  border-left: 1px solid var(--border);
+}
+.theme-picker .theme-btn.active {
+  background: rgba(var(--accent-rgb), 0.22);
+  color: var(--accent);
+  border-color: rgba(var(--accent-rgb), 0.3);
+}
+
 a { color: var(--text); text-decoration: none; cursor: pointer }
 
 @media (max-width: 900px) {
@@ -262,11 +380,12 @@ a { color: var(--text); text-decoration: none; cursor: pointer }
 @media (max-width: 600px) {
   .tab-card { padding: 14px 8px; width: 100% !important; }
   .control-tabs { flex-wrap: wrap; gap: 4px; }
-  .nav-group { flex: none; flex-wrap: wrap; justify-content: center; }
+  .nav-group { flex: none; flex-wrap: wrap; justify-content: center; gap: 6px; }
   .nav-group--left, .nav-group--right { justify-content: center; }
   .nav-logo { margin: 0 6px; order: -1; width: 100%; justify-content: center; min-width: unset; }
   .nav-logo img { height: 52px; margin-top: 0; }
-  .control-tabs .tab { padding: 6px 8px; font-size: 12px; }
+  .control-tabs .tab { padding: 6px 8px; font-size: 11px; }
+  .nav-separator { display: none; }
 }
 
 /* Home page lateral images */
