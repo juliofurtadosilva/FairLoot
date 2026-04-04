@@ -46,6 +46,23 @@ export default function Wishlist() {
   const [search, setSearch] = useState('')
   const [expandedChars, setExpandedChars] = useState<Set<string>>(new Set())
   const [selectedRaid, setSelectedRaid] = useState<string>('')
+  const [simcFilter, setSimcFilter] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem('outdatedSimcFilter')
+      if (raw) {
+        const arr = JSON.parse(raw) as string[]
+        const normalized = arr.map(v => {
+          const s = (v || '').toString().trim().toLowerCase()
+          if (s === 'n' || s === 'normal') return 'normal'
+          if (s === 'h' || s === 'heroic') return 'heroic'
+          if (s === 'm' || s === 'mythic') return 'mythic'
+          return s
+        }).filter(x => x)
+        return new Set<string>(normalized)
+      }
+    } catch {}
+    return new Set<string>()
+  })
   const [initialLoading, setInitialLoading] = useState(true)
   // simc filter removed from Wishlist — controlled in Dashboard
   // guild/characters removed: iLevel logic was cancelled
@@ -221,20 +238,7 @@ export default function Wishlist() {
               {raids.map(r => <option key={r} value={r}>{r}</option>)}
             </select>
           )}
-          <div className="wishlist-simc-toggles">
-            <span className="wishlist-simc-label">SimC:</span>
-            {orderedDiffs.map(d => (
-              <button
-                key={d}
-                className={`wishlist-simc-btn ${simcDiffs.has(d) ? 'active' : ''}`}
-                style={{ borderColor: simcDiffs.has(d) ? diffColor(d) : undefined }}
-                onClick={() => toggleSimcDiff(d)}
-                title={`SimC ${d}`}
-              >
-                {d.charAt(0).toUpperCase()}
-              </button>
-            ))}
-          </div>
+         
         </div>
 
         <div className="wishlist-count">
@@ -260,18 +264,18 @@ export default function Wishlist() {
                   </div>
                   <div className="wishlist-char-right">
                     {/* iLevel badges removed */}
-                    {simcDiffs.size > 0 && (
-                      <div className="wishlist-simc-badges" style={{ marginRight: 8 }}>
-                        {orderedDiffs.filter(d => simcDiffs.has(d)).map(d => {
-                          const has = hasSimcForDiff(c, d)
-                          return (
-                            <span key={d} className={`wishlist-simc-badge ${has ? 'ok' : 'fail'}`} title={`SimC ${d}: ${has ? '✓' : '✗'}`}>
-                              {d.charAt(0).toUpperCase()} {has ? '✓' : '✗'}
-                            </span>
-                          )
-                        })}
-                      </div>
-                    )}
+                    {/*{simcFilter.size > 0 && (*/}
+                    {/*  <div className="wishlist-simc-badges" style={{ marginRight: 8 }}>*/}
+                    {/*    {orderedDiffs.filter(d => simcFilter.has(d)).map(d => {*/}
+                    {/*      const has = hasSimcForDiff(c, d)*/}
+                    {/*      return (*/}
+                    {/*        <span key={d} className={`wishlist-simc-badge ${has ? 'ok' : 'fail'}`} title={`SimC ${d}: ${has ? '✓' : '✗'}`}>*/}
+                    {/*          {d.charAt(0).toUpperCase()} {has ? '✓' : '✗'}*/}
+                    {/*        </span>*/}
+                    {/*      )*/}
+                    {/*    })}*/}
+                    {/*  </div>*/}
+                    {/*)}*/}
                     {/* iLevel value removed */}
                     <span className="wishlist-realm">{c.realm}</span>
                     <span className="wishlist-overall" style={{ color: percColor(c.overallPercentage), marginLeft: 8 }}>
