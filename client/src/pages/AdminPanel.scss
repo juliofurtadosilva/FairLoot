@@ -16,9 +16,8 @@
   flex-direction:column;
   gap:10px;
   background:var(--panel-bg);
-  border-radius:8px;
+  border-radius: 4px;
   padding:16px 18px;
-  border:1px solid var(--border);
 }
 
 .admin-section-label{
@@ -47,7 +46,7 @@
   flex:1;
   min-width:200px;
   padding:6px 10px;
-  border-radius:6px;
+  border-radius: 4px;
   border:1px solid var(--border);
   background:var(--input-bg);
   color:var(--text);
@@ -58,19 +57,22 @@
   display:flex;
   gap:16px;
   flex-wrap:wrap;
-  align-items:flex-start;
+  align-items:center;
+  justify-content:space-between;
 }
 
 .admin-weight-group{
   display:flex;
   align-items:center;
   gap:8px;
+  flex:1 1 140px;
 }
 
 .admin-weight-input{
-  width:60px;
+  flex:1;
+  min-width:0;
   padding:6px 8px;
-  border-radius:6px;
+  border-radius: 4px;
   border:1px solid var(--border);
   background:var(--input-bg);
   color:var(--text);
@@ -88,7 +90,7 @@
 .admin-ilevel-input{
   width:60px;
   padding:6px 8px;
-  border-radius:6px;
+  border-radius: 4px;
   border:1px solid var(--border);
   background:var(--input-bg);
   color:var(--text);
@@ -96,17 +98,15 @@
   text-align:center;
 }
 
-/* Formula collapsible */
+/* Formula collapsible — a divider, not another nested box */
 .admin-formula-box{
-  background:rgba(var(--accent-rgb),0.06);
-  border:1px solid rgba(var(--accent-rgb),0.15);
-  border-radius:6px;
   margin-top:4px;
-  overflow:hidden;
+  padding-top:10px;
+  border-top:1px solid var(--border);
 }
 
 .admin-formula-toggle{
-  padding:10px 14px;
+  padding:2px 0;
   cursor:pointer;
   user-select:none;
   display:flex;
@@ -127,7 +127,7 @@
 }
 
 .admin-formula-content{
-  padding:0 14px 14px;
+  padding:10px 0 0;
 }
 
 .admin-formula-equation{
@@ -136,7 +136,7 @@
   font-family:monospace;
   background:var(--panel-bg);
   padding:8px 12px;
-  border-radius:4px;
+  border-radius: 4px;
   margin-bottom:10px;
   text-align:center;
 }
@@ -198,7 +198,7 @@
 
 .admin-search{
   padding:6px 10px;
-  border-radius:6px;
+  border-radius: 4px;
   border:1px solid rgba(var(--accent-rgb),0.3);
   background:var(--input-bg);
   color:var(--text);
@@ -225,9 +225,9 @@
   align-items:center;
   gap:8px;
   padding:8px 10px;
-  border-radius:6px;
+  border-radius: 4px;
   background:var(--panel-bg);
-  border:1px solid var(--border);
+  border:1px solid transparent;
 }
 
 .admin-char-card--new{
@@ -237,7 +237,7 @@
 .admin-char-icon{
   width:24px;
   height:24px;
-  border-radius:4px;
+  border-radius: 4px;
   flex-shrink:0;
 }
 
@@ -283,7 +283,7 @@
 
 .admin-new-btn{
   padding:2px 6px;
-  border-radius:4px;
+  border-radius: 4px;
   font-size:9px;
   font-weight:700;
   cursor:pointer;
@@ -312,7 +312,7 @@
   align-items:center;
   gap:6px;
   padding:4px 10px;
-  border-radius:6px;
+  border-radius: 4px;
   font-size:11px;
   font-weight:600;
   flex-shrink:0;
@@ -340,12 +340,10 @@
   50% { opacity:0.3 }
 }
 
-/* Live preview */
+/* Live preview — a divider section, not a nested box */
 .admin-preview{
-  background:rgba(var(--accent-rgb),0.04);
-  border:1px solid rgba(var(--accent-rgb),0.12);
-  border-radius:6px;
-  padding:12px 14px;
+  padding-top:12px;
+  border-top:1px solid var(--border);
 }
 
 .admin-preview-title{
@@ -430,14 +428,14 @@
   flex:1;
   height:14px;
   background:var(--glass);
-  border-radius:3px;
+  border-radius: 4px;
   overflow:hidden;
   min-width:60px;
 }
 
 .admin-preview-bar{
   height:100%;
-  border-radius:3px;
+  border-radius: 4px;
   transition: width 0.3s ease;
 }
 

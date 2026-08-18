@@ -13,7 +13,7 @@
 .modal-box{
   background:var(--card);
   border:1px solid var(--border);
-  border-radius:12px;
+  border-radius: 4px;
   box-shadow:0 8px 40px rgba(0,0,0,0.4);
   padding:24px 28px;
   min-width:280px;
@@ -41,7 +41,7 @@
 
 .modal-btn{
   padding:8px 22px;
-  border-radius:8px;
+  border-radius: 4px;
   font-size:13px;
   font-weight:600;
   cursor:pointer;

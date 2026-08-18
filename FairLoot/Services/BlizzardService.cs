@@ -1,5 +1,6 @@
 using System.Net.Http.Headers;
 using System.Text.Json;
+using System.Collections.Concurrent;
 using Microsoft.Extensions.Configuration;
 
 namespace FairLoot.Services
@@ -13,6 +14,21 @@ namespace FairLoot.Services
         private string? _accessToken;
         private DateTimeOffset _tokenExpiry = DateTimeOffset.MinValue;
         private readonly object _tokenLock = new object();
+
+        // journal (encounter journal) caches — instances/encounters change rarely, cache long;
+        // resolved media URLs use the same null-caching pattern as GetWowheadIconAsync.
+        private static readonly TimeSpan _journalIndexTtl = TimeSpan.FromHours(24);
+        private static readonly TimeSpan _mediaNullTtl = TimeSpan.FromHours(2);
+        private static readonly ConcurrentDictionary<string, (DateTime Expiry, List<(int Id, string Name)> Data)> _journalInstanceIndexCache = new();
+        private static readonly ConcurrentDictionary<int, (DateTime Expiry, List<(int Id, string Name)> Encounters)> _journalInstanceEncountersCache = new();
+        private static readonly ConcurrentDictionary<int, (string? Url, DateTime CachedAt)> _journalInstanceImageCache = new();
+        private static readonly ConcurrentDictionary<int, (DateTime Expiry, int? CreatureDisplayId)> _journalEncounterCreatureCache = new();
+        private static readonly ConcurrentDictionary<int, (string? Url, DateTime CachedAt)> _creatureDisplayImageCache = new();
+        private static readonly ConcurrentDictionary<string, (string? Url, DateTime CachedAt)> _bossImageByNameCache = new();
+        private static readonly SemaphoreSlim _journalSearchSemaphore = new(15, 15);
+        private static readonly ConcurrentDictionary<(int Id, string Locale), (DateTime Expiry, string? Name)> _instanceLocalizedNameCache = new();
+        private static readonly ConcurrentDictionary<(int Id, string Locale), (DateTime Expiry, string? Name)> _encounterLocalizedNameCache = new();
+        private static readonly ConcurrentDictionary<int, (DateTime Expiry, string? ExpansionName)> _instanceExpansionCache = new();
 
         public BlizzardService(HttpClient http, IConfiguration config, ILogger<BlizzardService> logger)
         {
@@ -154,6 +170,460 @@ namespace FairLoot.Services
                 _logger.LogDebug(ex, "Failed to fetch item name for {ItemId} locale {Locale}", itemId, locale);
                 return null;
             }
+        }
+
+        private static string NormalizeForMatch(string? s)
+        {
+            if (string.IsNullOrWhiteSpace(s)) return string.Empty;
+            return s.Trim().ToLowerInvariant().Replace("'", "").Replace("'", "").Replace("’", "").Replace("`", "");
+        }
+
+        /// <summary>List of all journal (encounter journal) raid/dungeon instances, cached ~24h.</summary>
+        public async Task<List<(int Id, string Name)>> GetJournalInstanceIndexAsync(string region = "us")
+        {
+            if (_journalInstanceIndexCache.TryGetValue(region, out var cached) && cached.Expiry > DateTime.UtcNow)
+                return cached.Data;
+            if (!HasCredentials()) return new List<(int, string)>();
+            if (!await EnsureTokenAsync()) return new List<(int, string)>();
+
+            try
+            {
+                var host = RegionHost(region);
+                var url = $"https://{host}/data/wow/journal-instance/index?namespace=static-{region}&locale=en_US";
+                var req = new HttpRequestMessage(HttpMethod.Get, url);
+                req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _accessToken);
+                var res = await _http.SendAsync(req);
+                if (!res.IsSuccessStatusCode) return new List<(int, string)>();
+
+                var txt = await res.Content.ReadAsStringAsync();
+                using var doc = JsonDocument.Parse(txt);
+                var list = new List<(int, string)>();
+                if (doc.RootElement.TryGetProperty("instances", out var insts) && insts.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var i in insts.EnumerateArray())
+                    {
+                        var id = i.TryGetProperty("id", out var idEl) && idEl.ValueKind == JsonValueKind.Number ? idEl.GetInt32() : 0;
+                        var name = i.TryGetProperty("name", out var nameEl) ? nameEl.GetString() : null;
+                        if (id > 0 && !string.IsNullOrEmpty(name)) list.Add((id, name));
+                    }
+                }
+                _journalInstanceIndexCache[region] = (DateTime.UtcNow.Add(_journalIndexTtl), list);
+                return list;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Failed to fetch journal-instance index");
+                return new List<(int, string)>();
+            }
+        }
+
+        /// <summary>Boss encounters for a journal instance, cached ~24h.</summary>
+        public async Task<List<(int Id, string Name)>> GetJournalInstanceEncountersAsync(int instanceId, string region = "us")
+        {
+            if (_journalInstanceEncountersCache.TryGetValue(instanceId, out var cached) && cached.Expiry > DateTime.UtcNow)
+                return cached.Encounters;
+            if (!HasCredentials()) return new List<(int, string)>();
+            if (!await EnsureTokenAsync()) return new List<(int, string)>();
+
+            try
+            {
+                var host = RegionHost(region);
+                var url = $"https://{host}/data/wow/journal-instance/{instanceId}?namespace=static-{region}&locale=en_US";
+                var req = new HttpRequestMessage(HttpMethod.Get, url);
+                req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _accessToken);
+                var res = await _http.SendAsync(req);
+                if (!res.IsSuccessStatusCode) return new List<(int, string)>();
+
+                var txt = await res.Content.ReadAsStringAsync();
+                using var doc = JsonDocument.Parse(txt);
+                var list = new List<(int, string)>();
+                if (doc.RootElement.TryGetProperty("encounters", out var encs) && encs.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var e in encs.EnumerateArray())
+                    {
+                        var id = e.TryGetProperty("id", out var idEl) && idEl.ValueKind == JsonValueKind.Number ? idEl.GetInt32() : 0;
+                        var name = e.TryGetProperty("name", out var nameEl) ? nameEl.GetString() : null;
+                        if (id > 0 && !string.IsNullOrEmpty(name)) list.Add((id, name));
+                    }
+                }
+                _journalInstanceEncountersCache[instanceId] = (DateTime.UtcNow.Add(_journalIndexTtl), list);
+                return list;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Failed to fetch journal-instance encounters for {InstanceId}", instanceId);
+                return new List<(int, string)>();
+            }
+        }
+
+        /// <summary>Background/tile art for a raid instance (used as the raid banner image).</summary>
+        public async Task<string?> GetJournalInstanceImageAsync(int instanceId, string region = "us")
+        {
+            if (_journalInstanceImageCache.TryGetValue(instanceId, out var cached))
+            {
+                if (cached.Url != null) return cached.Url;
+                if (DateTime.UtcNow - cached.CachedAt < _mediaNullTtl) return null;
+            }
+            if (!HasCredentials()) return null;
+            if (!await EnsureTokenAsync()) return null;
+
+            try
+            {
+                var host = RegionHost(region);
+                var url = $"https://{host}/data/wow/media/journal-instance/{instanceId}?namespace=static-{region}&locale=en_US";
+                var req = new HttpRequestMessage(HttpMethod.Get, url);
+                req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _accessToken);
+                var res = await _http.SendAsync(req);
+                string? found = null;
+                if (res.IsSuccessStatusCode)
+                {
+                    var txt = await res.Content.ReadAsStringAsync();
+                    using var doc = JsonDocument.Parse(txt);
+                    if (doc.RootElement.TryGetProperty("assets", out var assets) && assets.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var a in assets.EnumerateArray())
+                        {
+                            if (a.TryGetProperty("key", out var key) && key.ValueKind == JsonValueKind.String
+                                && (key.GetString() == "tile" || key.GetString() == "background")
+                                && a.TryGetProperty("value", out var val) && val.ValueKind == JsonValueKind.String)
+                            {
+                                found = val.GetString();
+                                if (key.GetString() == "tile") break; // prefer tile over background
+                            }
+                        }
+                    }
+                }
+                _journalInstanceImageCache[instanceId] = (found, DateTime.UtcNow);
+                return found;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Failed to fetch journal-instance media for {InstanceId}", instanceId);
+                _journalInstanceImageCache[instanceId] = (null, DateTime.UtcNow);
+                return null;
+            }
+        }
+
+        /// <summary>First creature (usually the main boss model) linked to a journal encounter, cached ~24h.</summary>
+        public async Task<int?> GetJournalEncounterPrimaryCreatureDisplayIdAsync(int encounterId, string region = "us")
+        {
+            if (_journalEncounterCreatureCache.TryGetValue(encounterId, out var cached) && cached.Expiry > DateTime.UtcNow)
+                return cached.CreatureDisplayId;
+            if (!HasCredentials()) return null;
+            if (!await EnsureTokenAsync()) return null;
+
+            try
+            {
+                var host = RegionHost(region);
+                var url = $"https://{host}/data/wow/journal-encounter/{encounterId}?namespace=static-{region}&locale=en_US";
+                var req = new HttpRequestMessage(HttpMethod.Get, url);
+                req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _accessToken);
+                var res = await _http.SendAsync(req);
+                int? displayId = null;
+                if (res.IsSuccessStatusCode)
+                {
+                    var txt = await res.Content.ReadAsStringAsync();
+                    using var doc = JsonDocument.Parse(txt);
+                    if (doc.RootElement.TryGetProperty("creatures", out var creatures) && creatures.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var c in creatures.EnumerateArray())
+                        {
+                            if (c.TryGetProperty("creature_display", out var cd) && cd.TryGetProperty("id", out var idEl) && idEl.ValueKind == JsonValueKind.Number)
+                            {
+                                displayId = idEl.GetInt32();
+                                break;
+                            }
+                        }
+                    }
+                }
+                _journalEncounterCreatureCache[encounterId] = (DateTime.UtcNow.Add(_journalIndexTtl), displayId);
+                return displayId;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Failed to fetch journal-encounter for {EncounterId}", encounterId);
+                _journalEncounterCreatureCache[encounterId] = (DateTime.UtcNow.Add(_journalIndexTtl), null);
+                return null;
+            }
+        }
+
+        /// <summary>Rendered "zoom" portrait for a creature display (used as the boss thumbnail).</summary>
+        public async Task<string?> GetCreatureDisplayImageAsync(int displayId, string region = "us")
+        {
+            if (_creatureDisplayImageCache.TryGetValue(displayId, out var cached))
+            {
+                if (cached.Url != null) return cached.Url;
+                if (DateTime.UtcNow - cached.CachedAt < _mediaNullTtl) return null;
+            }
+            if (!HasCredentials()) return null;
+            if (!await EnsureTokenAsync()) return null;
+
+            try
+            {
+                var host = RegionHost(region);
+                var url = $"https://{host}/data/wow/media/creature-display/{displayId}?namespace=static-{region}&locale=en_US";
+                var req = new HttpRequestMessage(HttpMethod.Get, url);
+                req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _accessToken);
+                var res = await _http.SendAsync(req);
+                string? found = null;
+                if (res.IsSuccessStatusCode)
+                {
+                    var txt = await res.Content.ReadAsStringAsync();
+                    using var doc = JsonDocument.Parse(txt);
+                    if (doc.RootElement.TryGetProperty("assets", out var assets) && assets.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var a in assets.EnumerateArray())
+                        {
+                            if (a.TryGetProperty("key", out var key) && key.ValueKind == JsonValueKind.String && key.GetString() == "zoom"
+                                && a.TryGetProperty("value", out var val) && val.ValueKind == JsonValueKind.String)
+                            {
+                                found = val.GetString();
+                                break;
+                            }
+                        }
+                    }
+                }
+                _creatureDisplayImageCache[displayId] = (found, DateTime.UtcNow);
+                return found;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Failed to fetch creature-display media for {DisplayId}", displayId);
+                _creatureDisplayImageCache[displayId] = (null, DateTime.UtcNow);
+                return null;
+            }
+        }
+
+        /// <summary>Resolve a raid's banner image automatically by name via the Blizzard Journal API.</summary>
+        public async Task<string?> ResolveRaidImageAsync(string raidName, string region = "us")
+        {
+            var instances = await GetJournalInstanceIndexAsync(region);
+            var target = NormalizeForMatch(raidName);
+            var inst = instances.FirstOrDefault(i => NormalizeForMatch(i.Name) == target);
+            if (inst.Id == 0) return null;
+            return await GetJournalInstanceImageAsync(inst.Id, region);
+        }
+
+        /// <summary>Resolve a boss's thumbnail image automatically by raid+boss name via the Blizzard Journal API.</summary>
+        public async Task<string?> ResolveBossImageAsync(string raidName, string bossName, string region = "us")
+        {
+            var instances = await GetJournalInstanceIndexAsync(region);
+            var raidTarget = NormalizeForMatch(raidName);
+            var inst = instances.FirstOrDefault(i => NormalizeForMatch(i.Name) == raidTarget);
+            if (inst.Id == 0) return null;
+
+            var encounters = await GetJournalInstanceEncountersAsync(inst.Id, region);
+            var bossTarget = NormalizeForMatch(bossName);
+            var enc = encounters.FirstOrDefault(e => NormalizeForMatch(e.Name) == bossTarget);
+            if (enc.Id == 0) return null;
+
+            var displayId = await GetJournalEncounterPrimaryCreatureDisplayIdAsync(enc.Id, region);
+            if (displayId == null) return null;
+            return await GetCreatureDisplayImageAsync(displayId.Value, region);
+        }
+
+        /// <summary>
+        /// Find a journal encounter id anywhere in the journal by (normalized) boss name — bounded
+        /// concurrency across every instance, everything cached per-instance afterward so repeat
+        /// lookups (including for other bosses) are fast. Returns 0 if not found.
+        /// </summary>
+        private async Task<int> FindEncounterIdAnywhereAsync(string normalizedBossName, string region)
+        {
+            var instances = await GetJournalInstanceIndexAsync(region);
+            var tasks = instances.Select(async inst =>
+            {
+                await _journalSearchSemaphore.WaitAsync();
+                try
+                {
+                    var encounters = await GetJournalInstanceEncountersAsync(inst.Id, region);
+                    var match = encounters.FirstOrDefault(e => NormalizeForMatch(e.Name) == normalizedBossName);
+                    return match.Id;
+                }
+                finally
+                {
+                    _journalSearchSemaphore.Release();
+                }
+            });
+
+            var results = await Task.WhenAll(tasks);
+            return results.FirstOrDefault(id => id != 0);
+        }
+
+        /// <summary>
+        /// Resolve a boss's portrait when the raid/instance isn't known (e.g. history records that only
+        /// store the boss name). Searches every journal instance — bounded concurrency, everything cached
+        /// per-instance afterward so repeat lookups (including for other bosses) are fast.
+        /// </summary>
+        public async Task<string?> ResolveBossImageByNameAsync(string bossName, string region = "us")
+        {
+            var target = NormalizeForMatch(bossName);
+            if (string.IsNullOrEmpty(target)) return null;
+
+            if (_bossImageByNameCache.TryGetValue(target, out var cached))
+            {
+                if (cached.Url != null) return cached.Url;
+                if (DateTime.UtcNow - cached.CachedAt < _mediaNullTtl) return null;
+            }
+
+            var encounterId = await FindEncounterIdAnywhereAsync(target, region);
+
+            string? resolved = null;
+            if (encounterId != 0)
+            {
+                var displayId = await GetJournalEncounterPrimaryCreatureDisplayIdAsync(encounterId, region);
+                if (displayId != null) resolved = await GetCreatureDisplayImageAsync(displayId.Value, region);
+            }
+
+            _bossImageByNameCache[target] = (resolved, DateTime.UtcNow);
+            return resolved;
+        }
+
+        /// <summary>Localized display name for a journal instance (raid), cached per instance+locale ~24h.</summary>
+        public async Task<string?> GetInstanceLocalizedNameAsync(int instanceId, string locale, string region = "us")
+        {
+            var key = (instanceId, locale);
+            if (_instanceLocalizedNameCache.TryGetValue(key, out var cached) && cached.Expiry > DateTime.UtcNow)
+                return cached.Name;
+            if (!HasCredentials()) return null;
+            if (!await EnsureTokenAsync()) return null;
+
+            try
+            {
+                var host = RegionHost(region);
+                var url = $"https://{host}/data/wow/journal-instance/{instanceId}?namespace=static-{region}&locale={locale}";
+                var req = new HttpRequestMessage(HttpMethod.Get, url);
+                req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _accessToken);
+                var res = await _http.SendAsync(req);
+                string? name = null;
+                if (res.IsSuccessStatusCode)
+                {
+                    var txt = await res.Content.ReadAsStringAsync();
+                    using var doc = JsonDocument.Parse(txt);
+                    if (doc.RootElement.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String) name = n.GetString();
+                }
+                _instanceLocalizedNameCache[key] = (DateTime.UtcNow.Add(_journalIndexTtl), name);
+                return name;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Failed to fetch localized instance name for {InstanceId}/{Locale}", instanceId, locale);
+                return null;
+            }
+        }
+
+        /// <summary>Localized display name for a journal encounter (boss), cached per encounter+locale ~24h.</summary>
+        public async Task<string?> GetEncounterLocalizedNameAsync(int encounterId, string locale, string region = "us")
+        {
+            var key = (encounterId, locale);
+            if (_encounterLocalizedNameCache.TryGetValue(key, out var cached) && cached.Expiry > DateTime.UtcNow)
+                return cached.Name;
+            if (!HasCredentials()) return null;
+            if (!await EnsureTokenAsync()) return null;
+
+            try
+            {
+                var host = RegionHost(region);
+                var url = $"https://{host}/data/wow/journal-encounter/{encounterId}?namespace=static-{region}&locale={locale}";
+                var req = new HttpRequestMessage(HttpMethod.Get, url);
+                req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _accessToken);
+                var res = await _http.SendAsync(req);
+                string? name = null;
+                if (res.IsSuccessStatusCode)
+                {
+                    var txt = await res.Content.ReadAsStringAsync();
+                    using var doc = JsonDocument.Parse(txt);
+                    if (doc.RootElement.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String) name = n.GetString();
+                }
+                _encounterLocalizedNameCache[key] = (DateTime.UtcNow.Add(_journalIndexTtl), name);
+                return name;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Failed to fetch localized encounter name for {EncounterId}/{Locale}", encounterId, locale);
+                return null;
+            }
+        }
+
+        /// <summary>Expansion name (e.g. "Midnight") for a journal instance, cached ~24h.</summary>
+        public async Task<string?> GetJournalInstanceExpansionNameAsync(int instanceId, string region = "us")
+        {
+            if (_instanceExpansionCache.TryGetValue(instanceId, out var cached) && cached.Expiry > DateTime.UtcNow)
+                return cached.ExpansionName;
+            if (!HasCredentials()) return null;
+            if (!await EnsureTokenAsync()) return null;
+
+            try
+            {
+                var host = RegionHost(region);
+                var url = $"https://{host}/data/wow/journal-instance/{instanceId}?namespace=static-{region}&locale=en_US";
+                var req = new HttpRequestMessage(HttpMethod.Get, url);
+                req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _accessToken);
+                var res = await _http.SendAsync(req);
+                string? name = null;
+                if (res.IsSuccessStatusCode)
+                {
+                    var txt = await res.Content.ReadAsStringAsync();
+                    using var doc = JsonDocument.Parse(txt);
+                    if (doc.RootElement.TryGetProperty("expansion", out var exp) && exp.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String)
+                        name = n.GetString();
+                }
+                _instanceExpansionCache[instanceId] = (DateTime.UtcNow.Add(_journalIndexTtl), name);
+                return name;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Failed to fetch expansion name for instance {InstanceId}", instanceId);
+                return null;
+            }
+        }
+
+        /// <summary>Resolve a raid's expansion name (e.g. "Midnight") by its (English) WowAudit name.</summary>
+        public async Task<string?> ResolveRaidExpansionNameAsync(string raidName, string region = "us")
+        {
+            var instances = await GetJournalInstanceIndexAsync(region);
+            var target = NormalizeForMatch(raidName);
+            var inst = instances.FirstOrDefault(i => NormalizeForMatch(i.Name) == target);
+            if (inst.Id == 0) return null;
+            return await GetJournalInstanceExpansionNameAsync(inst.Id, region);
+        }
+
+        /// <summary>Resolve a raid's localized display name by its (English) WowAudit name.</summary>
+        public async Task<string?> ResolveRaidLocalizedNameAsync(string raidName, string locale, string region = "us")
+        {
+            var instances = await GetJournalInstanceIndexAsync(region);
+            var target = NormalizeForMatch(raidName);
+            var inst = instances.FirstOrDefault(i => NormalizeForMatch(i.Name) == target);
+            if (inst.Id == 0) return null;
+            return await GetInstanceLocalizedNameAsync(inst.Id, locale, region);
+        }
+
+        /// <summary>
+        /// Resolve a boss's localized display name. Uses the raid name for a fast targeted lookup when
+        /// known; otherwise searches every instance (same as ResolveBossImageByNameAsync).
+        /// </summary>
+        public async Task<string?> ResolveBossLocalizedNameAsync(string? raidName, string bossName, string locale, string region = "us")
+        {
+            var bossTarget = NormalizeForMatch(bossName);
+            var encounterId = 0;
+
+            if (!string.IsNullOrWhiteSpace(raidName))
+            {
+                var instances = await GetJournalInstanceIndexAsync(region);
+                var raidTarget = NormalizeForMatch(raidName);
+                var inst = instances.FirstOrDefault(i => NormalizeForMatch(i.Name) == raidTarget);
+                if (inst.Id != 0)
+                {
+                    var encounters = await GetJournalInstanceEncountersAsync(inst.Id, region);
+                    var enc = encounters.FirstOrDefault(e => NormalizeForMatch(e.Name) == bossTarget);
+                    encounterId = enc.Id;
+                }
+            }
+
+            if (encounterId == 0)
+                encounterId = await FindEncounterIdAnywhereAsync(bossTarget, region);
+
+            if (encounterId == 0) return null;
+            return await GetEncounterLocalizedNameAsync(encounterId, locale, region);
         }
 
         private static string RegionHost(string region) => region switch

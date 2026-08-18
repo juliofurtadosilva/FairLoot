@@ -72,9 +72,12 @@ export default function Dashboard() {
     return new Set<string>()
   })
   const [carouselIndex, setCarouselIndex] = useState(0)
-  const [lootByPlayer, setLootByPlayer] = useState<{ name: string; count: number; className?: string }[]>([])
+  const [lootByPlayer, setLootByPlayer] = useState<{ name: string; count: number; manualCount: number; className?: string }[]>([])
   const [timeline, setTimeline] = useState<{ date: string; count: number }[]>([])
   const [seasonStart, setSeasonStart] = useState<string | null>(null)
+  const [seasonDrops, setSeasonDrops] = useState<any[]>([])
+  const [seasonChars, setSeasonChars] = useState<any[]>([])
+  const [selectedDate, setSelectedDate] = useState<string | null>(null)
 
   // no auto-advance — user prefers manual control
 
@@ -207,23 +210,29 @@ export default function Dashboard() {
         // filter to current season
         const current = drops.filter((d: any) => d.assignedTo && !d.isReverted && new Date(d.createdAt).getTime() > seasonCutoff)
 
-        // count per player
+        // count per player — scored items and manually-assigned (no-score) items tracked separately
         const countMap: Record<string, number> = {}
+        const manualCountMap: Record<string, number> = {}
         const classMap: Record<string, string> = {}
         for (const c of allChars) {
           if (c.name) {
             countMap[c.name] = 0
+            manualCountMap[c.name] = 0
             if (c.class) classMap[c.name] = c.class
           }
         }
         for (const d of current) {
-          countMap[d.assignedTo] = (countMap[d.assignedTo] || 0) + 1
+          if (d.isManualAssignment) {
+            manualCountMap[d.assignedTo] = (manualCountMap[d.assignedTo] || 0) + 1
+          } else {
+            countMap[d.assignedTo] = (countMap[d.assignedTo] || 0) + 1
+          }
           if (!classMap[d.assignedTo] && d.className) classMap[d.assignedTo] = d.className
         }
 
         const sorted = Object.entries(countMap)
-          .map(([name, count]) => ({ name, count, className: classMap[name] }))
-          .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+          .map(([name, count]) => ({ name, count, manualCount: manualCountMap[name] || 0, className: classMap[name] }))
+          .sort((a, b) => (b.count + b.manualCount) - (a.count + a.manualCount) || a.name.localeCompare(b.name))
         setLootByPlayer(sorted)
 
         // timeline: group by date
@@ -242,6 +251,10 @@ export default function Dashboard() {
           const earliest = current.reduce((min: any, d: any) => new Date(d.createdAt).getTime() < new Date(min.createdAt).getTime() ? d : min, current[0])
           setSeasonStart(new Date(earliest.createdAt).toLocaleDateString())
         }
+
+        // keep the raw season drops + roster around so clicking a timeline day can re-aggregate just that day
+        setSeasonDrops(current)
+        setSeasonChars(allChars)
       } catch {}
     }
     loadChart()
@@ -279,11 +292,31 @@ export default function Dashboard() {
     } catch {}
   }, [allOutdated])
 
-  const maxLoot = useMemo(() => Math.max(...lootByPlayer.map(p => p.count), 1), [lootByPlayer])
+  // clicking a timeline day re-aggregates the chart to just that day's recipients instead of the whole season
+  const displayedPlayers = useMemo(() => {
+    if (!selectedDate) return lootByPlayer
+    const dayDrops = seasonDrops.filter((d: any) => new Date(d.createdAt).toLocaleDateString() === selectedDate)
+    const countMap: Record<string, number> = {}
+    const manualCountMap: Record<string, number> = {}
+    const classMap: Record<string, string> = {}
+    for (const c of seasonChars) { if (c.name && c.class) classMap[c.name] = c.class }
+    for (const d of dayDrops) {
+      if (d.isManualAssignment) manualCountMap[d.assignedTo] = (manualCountMap[d.assignedTo] || 0) + 1
+      else countMap[d.assignedTo] = (countMap[d.assignedTo] || 0) + 1
+      if (!classMap[d.assignedTo] && d.className) classMap[d.assignedTo] = d.className
+    }
+    const names = new Set([...Object.keys(countMap), ...Object.keys(manualCountMap)])
+    return Array.from(names)
+      .map(name => ({ name, count: countMap[name] || 0, manualCount: manualCountMap[name] || 0, className: classMap[name] }))
+      .sort((a, b) => (b.count + b.manualCount) - (a.count + a.manualCount) || a.name.localeCompare(b.name))
+  }, [selectedDate, seasonDrops, seasonChars, lootByPlayer])
+
+  const maxLoot = useMemo(() => Math.max(...displayedPlayers.map(p => p.count + p.manualCount), 1), [displayedPlayers])
+  const hasManualAssignments = useMemo(() => displayedPlayers.some(p => p.manualCount > 0), [displayedPlayers])
 
   return (
     <div className="tab-content">
-      <div className="card tab-card dash-card">
+      <div className="tab-card dash-card">
         <h2 className="dash-welcome">{t('dash.welcome')}</h2>
         <p className="dash-subtitle">{t('dash.subtitle')}</p>
 
@@ -294,8 +327,17 @@ export default function Dashboard() {
             {seasonStart && (
               <div className="dash-chart-since">{t('dash.chartSince')} {seasonStart}</div>
             )}
+            {selectedDate && (
+              <div className="dash-chart-filter">
+                {t('dash.chartFilteredBy')} <strong>{selectedDate}</strong>
+                <button type="button" className="dash-chart-filter-clear" onClick={() => setSelectedDate(null)}>{t('dash.chartFilterClear')}</button>
+              </div>
+            )}
+            {hasManualAssignments && (
+              <div className="dash-chart-legend">{t('dash.chartNoScoreLegend')}</div>
+            )}
             <div className="dash-chart">
-              {lootByPlayer.map((p, i) => {
+              {displayedPlayers.map((p, i) => {
                 const barColor = getClassColor(p.className, theme)
                 return (
                   <div key={i} className="dash-chart-row">
@@ -309,8 +351,18 @@ export default function Dashboard() {
                           background: barColor,
                         }}
                       />
+                      {p.manualCount > 0 && (
+                        <div
+                          className="dash-chart-bar dash-chart-bar--noscore"
+                          title={t('dash.chartNoScoreLegend')}
+                          style={{
+                            width: `${(p.manualCount / maxLoot) * 100}%`,
+                            animationDelay: `${i * 50}ms`,
+                          }}
+                        />
+                      )}
                     </div>
-                    <div className="dash-chart-value">{p.count}</div>
+                    <div className="dash-chart-value">{p.count}{p.manualCount > 0 ? ` +${p.manualCount}` : ''}</div>
                   </div>
                 )
               })}
@@ -321,7 +373,12 @@ export default function Dashboard() {
                 <div className="dash-timeline-title">{t('dash.chartTimeline')}</div>
                 <div className="dash-timeline-track">
                   {timeline.map((tp, i) => (
-                    <div key={i} className="dash-timeline-point" title={`${tp.date}: ${tp.count}`}>
+                    <div
+                      key={i}
+                      className={`dash-timeline-point${selectedDate === tp.date ? ' selected' : ''}`}
+                      title={`${tp.date}: ${tp.count}`}
+                      onClick={() => setSelectedDate(selectedDate === tp.date ? null : tp.date)}
+                    >
                       <div className="dash-timeline-bar" style={{ height: `${Math.max(8, (tp.count / Math.max(...timeline.map(x => x.count))) * 40)}px` }} />
                       <div className="dash-timeline-label">{tp.date.replace(/\/\d{4}$/, '').replace(/\/20\d{2}$/, '')}</div>
                     </div>
@@ -335,7 +392,7 @@ export default function Dashboard() {
         {/* Outdated SimC Warnings — first thing after welcome */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <h3 className="outdated-title" style={{ margin: 0 }}>{t('dash.outdatedTitle')}</h3>
+            <h3 className="outdated-title" style={{ margin: 0 }}><span aria-hidden="true">⚠️ </span>{t('dash.outdatedTitle')}</h3>
             <p className="outdated-desc" style={{ margin: '0 0 0 12px' }}>{t('dash.outdatedDesc')}</p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -378,14 +435,14 @@ export default function Dashboard() {
         </div>
         {outdated.length > 0 && (
           <div className="outdated-section">
-            <h3 className="outdated-title">{t('dash.outdatedTitle')}</h3>
+            <h3 className="outdated-title"><span aria-hidden="true">⚠️ </span>{t('dash.outdatedTitle')}</h3>
             <p className="outdated-desc">{t('dash.outdatedDesc')}</p>
             <div className="outdated-grid">
               {outdated.map((w, i) => {
                 const daysAgo = w.lastOutdatedTs ? Math.max(1, Math.floor((Date.now() - w.lastOutdatedTs) / (1000*60*60*24))) : null
                 const classIcon = getClassIconUrl(w.className)
                 return (
-                  <div key={i} className="outdated-card">
+                  <div key={i} className="outdated-card panel">
                     <div className="outdated-top">
                       {classIcon ? (
                         <img src={classIcon} alt={w.className || ''} className="outdated-class-icon" draggable={false} />
@@ -413,10 +470,10 @@ export default function Dashboard() {
 
         {/* v1 Features */}
         <div className="dash-features-section">
-          <h3 className="dash-features-title">{t('dash.featTitle')}</h3>
+          <h3 className="dash-features-title"><span aria-hidden="true">✨ </span>{t('dash.featTitle')}</h3>
           <div className="features-grid">
             {v1Features.map((f, i) => (
-              <div key={i} className="feature-card">
+              <div key={i} className="feature-card panel">
                 <span className="feature-icon">{f.icon}</span>
                 <div className="feature-text">
                   <div className="feature-title">{t(f.titleKey)}</div>
@@ -432,7 +489,7 @@ export default function Dashboard() {
           <h3 className="changelog-title">{t('dash.changelog')}</h3>
           <div className="carousel">
             <button className="carousel-btn" onClick={() => setCarouselIndex((carouselIndex - 1 + changelog.length) % changelog.length)}>‹</button>
-            <div className="carousel-item">
+            <div className="carousel-item panel">
               <div className="carousel-version-row">
                 <span className="carousel-version">{changelog[carouselIndex].version}</span>
                 <span className="carousel-date">{changelog[carouselIndex].date}</span>

@@ -14,7 +14,30 @@ export default function AdminPanel() {
   const [showHelp, setShowHelp] = useState(false)
   const [wowauditStatus, setWowauditStatus] = useState<'checking' | 'connected' | 'disconnected' | 'nokey'>('checking')
   const [wowauditCharCount, setWowauditCharCount] = useState(0)
+  const [lootHistory, setLootHistory] = useState<any[]>([])
+  const [recalcPreview, setRecalcPreview] = useState<{ dropsConsidered: number; diffs: any[] } | null>(null)
+  const [recalcLoading, setRecalcLoading] = useState(false)
+  const [raidImages, setRaidImages] = useState<{ id?: string; entityType: string; name: string; imageFile: string }[]>([])
   const { t, lang, theme, showAlert, showToast, showConfirm } = useApp()
+
+  // raw text for the weight/half-life inputs while being typed — keeps the field from re-formatting
+  // (and gluing a stale "0" onto new digits) mid-edit; committed to `form` as a number on blur.
+  const [weightInputs, setWeightInputs] = useState<Record<string, string>>({})
+  const weightInputValue = (key: string, fallback: number) =>
+    weightInputs[key] !== undefined ? weightInputs[key] : String(form[key] ?? fallback)
+  const handleWeightChange = (key: string, raw: string) => {
+    setWeightInputs(prev => ({ ...prev, [key]: raw }))
+    if (raw === '' || raw === '-') return
+    const num = Number(raw)
+    if (!Number.isNaN(num)) setForm((f: any) => ({ ...f, [key]: num }))
+  }
+  const handleWeightBlur = (key: string) => {
+    setWeightInputs(prev => {
+      const next = { ...prev }
+      delete next[key]
+      return next
+    })
+  }
 
   const fetchData = async () => {
     try {
@@ -23,6 +46,7 @@ export default function AdminPanel() {
         setGuild(g)
         setForm(g)
         setChars(getDemoCharacters())
+        setLootHistory(getDemoLootHistory().filter((d: any) => d.assignedTo && !d.isReverted))
         return
       }
       const r = await api.get('/api/guild')
@@ -30,6 +54,10 @@ export default function AdminPanel() {
       setForm(r.data)
       const c = await api.get('/api/guild/characters')
       setChars(c.data || [])
+      const h = await api.get('/api/loot/history').catch(() => ({ data: [] }))
+      setLootHistory((h.data || []).filter((d: any) => d.assignedTo && !d.isReverted))
+      const ri = await api.get('/api/guild/raid-images').catch(() => ({ data: [] }))
+      setRaidImages(ri.data || [])
     } catch (e) {
       console.error(e)
     }
@@ -105,14 +133,10 @@ export default function AdminPanel() {
     const b = form.priorityBeta ?? 0.3
     const g = form.priorityGamma ?? 0.3
 
-    // get loot history for score + recent count
-    let drops: any[] = []
-    if (isDemoMode()) {
-      drops = getDemoLootHistory().filter((d: any) => d.assignedTo && !d.isReverted)
-    }
+    // recent-30d loot count feeding the γ factor — uses real history in both demo and production now
     const recentCutoff = Date.now() - 30 * 24 * 60 * 60 * 1000
     const recentMap: Record<string, number> = {}
-    for (const d of drops) {
+    for (const d of lootHistory) {
       if (new Date(d.createdAt).getTime() >= recentCutoff) {
         recentMap[d.assignedTo] = (recentMap[d.assignedTo] || 0) + 1
       }
@@ -145,7 +169,46 @@ export default function AdminPanel() {
         return { ...c, upgradeNorm, fairnessNorm, lootCountNorm, priority }
       })
       .sort((x, y) => y.priority - x.priority)
-  }, [form.priorityAlpha, form.priorityBeta, form.priorityGamma, chars])
+  }, [form.priorityAlpha, form.priorityBeta, form.priorityGamma, chars, lootHistory])
+
+  const previewRecalc = async () => {
+    if (isDemoMode()) return
+    try {
+      setRecalcLoading(true)
+      const r = await api.post('/api/loot/recalculate-scores?dryRun=true')
+      setRecalcPreview(r.data)
+    } catch (e) {
+      console.error(e)
+      showAlert(t('admin.recalcPreviewError'))
+    } finally { setRecalcLoading(false) }
+  }
+
+  const applyRecalc = async () => {
+    if (isDemoMode()) return
+    try {
+      setRecalcLoading(true)
+      await api.post('/api/loot/recalculate-scores')
+      setRecalcPreview(null)
+      await fetchData()
+      showToast(t('admin.saved'))
+    } catch (e) {
+      console.error(e)
+      showAlert(t('admin.saveError'))
+    } finally { setRecalcLoading(false) }
+  }
+
+  const saveRaidImage = async (entityType: string, name: string, imageFile: string) => {
+    if (isDemoMode()) return
+    try {
+      await api.put('/api/guild/raid-images', { entityType, name, imageFile })
+      const ri = await api.get('/api/guild/raid-images').catch(() => ({ data: [] }))
+      setRaidImages(ri.data || [])
+      showToast(t('admin.raidImagesSaved'))
+    } catch (e) {
+      console.error(e)
+      showAlert(t('admin.raidImagesError'))
+    }
+  }
 
   const finalizeSeason = async () => {
     if (!(await showConfirm(t('admin.seasonFinalizeConfirm'), true))) return
@@ -187,7 +250,7 @@ export default function AdminPanel() {
 
   return (
     <div className="tab-content">
-      <div className="card tab-card admin-card" style={{ padding: '24px 20px', gap: 16 }}>
+      <div className="tab-card admin-card" style={{ padding: '1%', gap: 16 }}>
         <h3 className="admin-title">{t('admin.title')}</h3>
 
         {guild ? (
@@ -215,26 +278,38 @@ export default function AdminPanel() {
               <div className="admin-weights-row">
                 <div className="admin-weight-group">
                   <label style={{ fontSize: 12, color: '#fb923c' }}>α Alpha:</label>
-                  <input type="number" step="0.05" min={0} max={1} value={form.priorityAlpha ?? 0.4}
-                    onChange={e => setForm({ ...form, priorityAlpha: Number(e.target.value) })}
+                  <input type="number" step="0.05" min={0} max={1} value={weightInputValue('priorityAlpha', 0.4)}
+                    onChange={e => handleWeightChange('priorityAlpha', e.target.value)}
+                    onBlur={() => handleWeightBlur('priorityAlpha')}
                     className="admin-weight-input"
                   />
                 </div>
                 <div className="admin-weight-group">
                   <label style={{ fontSize: 12, color: 'var(--color-cyan)' }}>β Beta:</label>
-                  <input type="number" step="0.05" min={0} max={1} value={form.priorityBeta ?? 0.3}
-                    onChange={e => setForm({ ...form, priorityBeta: Number(e.target.value) })}
+                  <input type="number" step="0.05" min={0} max={1} value={weightInputValue('priorityBeta', 0.3)}
+                    onChange={e => handleWeightChange('priorityBeta', e.target.value)}
+                    onBlur={() => handleWeightBlur('priorityBeta')}
                     className="admin-weight-input"
                   />
                 </div>
                 <div className="admin-weight-group">
                   <label style={{ fontSize: 12, color: 'var(--color-transmog)' }}>γ Gamma:</label>
-                  <input type="number" step="0.05" min={0} max={1} value={form.priorityGamma ?? 0.3}
-                    onChange={e => setForm({ ...form, priorityGamma: Number(e.target.value) })}
+                  <input type="number" step="0.05" min={0} max={1} value={weightInputValue('priorityGamma', 0.3)}
+                    onChange={e => handleWeightChange('priorityGamma', e.target.value)}
+                    onBlur={() => handleWeightBlur('priorityGamma')}
+                    className="admin-weight-input"
+                  />
+                </div>
+                <div className="admin-weight-group">
+                  <label style={{ fontSize: 12, color: 'var(--muted)' }}>{t('admin.decayLabel')}:</label>
+                  <input type="number" step="10" min={0} value={weightInputValue('scoreDecayHalfLifeDays', 0)}
+                    onChange={e => handleWeightChange('scoreDecayHalfLifeDays', e.target.value)}
+                    onBlur={() => handleWeightBlur('scoreDecayHalfLifeDays')}
                     className="admin-weight-input"
                   />
                 </div>
               </div>
+              <div className="admin-formula-item" style={{ marginTop: -4 }}>{t('admin.decayDesc')}</div>
 
               {/* Min iLevel inputs removed per request */}
 
@@ -245,6 +320,7 @@ export default function AdminPanel() {
                 <div className="admin-preview-desc">{t('admin.previewDesc')}</div>
                 <div className="admin-preview-item-example">
                   🗡️ <span>{lang === 'pt' ? 'Item exemplo:' : 'Example item:'}</span> <strong>Glaives of the Ruthless Executioner</strong>
+                  <span style={{ marginLeft: 8, fontStyle: 'italic' }}>{t('admin.previewIllustrative')}</span>
                 </div>
                 <div className="admin-preview-table-wrap">
                   <table className="admin-preview-table">
@@ -328,7 +404,46 @@ export default function AdminPanel() {
               <div className="admin-btn-row">
                 <button onClick={save} disabled={loading} className="admin-btn">{t('admin.save')}</button>
                 <button onClick={sync} disabled={loading} className="admin-btn">{t('admin.sync')}</button>
+                <button onClick={previewRecalc} disabled={recalcLoading || isDemoMode()} className="admin-btn">{t('admin.recalcPreview')}</button>
               </div>
+
+              {recalcPreview && (
+                <div className="admin-preview">
+                  <div className="admin-preview-title">{t('admin.recalcPreviewTitle')}</div>
+                  {recalcPreview.diffs.length === 0 ? (
+                    <div className="admin-preview-desc">{t('admin.recalcPreviewEmpty')}</div>
+                  ) : (
+                    <div className="admin-preview-table-wrap">
+                      <table className="admin-preview-table">
+                        <thead>
+                          <tr>
+                            <th>{lang === 'pt' ? 'Jogador' : 'Player'}</th>
+                            <th>{lang === 'pt' ? 'Score atual' : 'Current score'}</th>
+                            <th>{lang === 'pt' ? 'Novo score' : 'New score'}</th>
+                            <th>Δ</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {recalcPreview.diffs.map((d: any) => (
+                            <tr key={d.characterName}>
+                              <td className="admin-preview-name-cell">{d.characterName}</td>
+                              <td><span className="admin-preview-raw">{Number(d.oldScore).toFixed(1)}</span></td>
+                              <td><span className="admin-preview-raw">{Number(d.newScore).toFixed(1)}</span></td>
+                              <td style={{ color: d.delta > 0 ? '#10b981' : '#ef4444', fontWeight: 700 }}>{d.delta > 0 ? '+' : ''}{Number(d.delta).toFixed(1)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                  <div className="admin-btn-row" style={{ marginTop: 10 }}>
+                    {recalcPreview.diffs.length > 0 && (
+                      <button onClick={applyRecalc} disabled={recalcLoading} className="admin-btn">{t('admin.recalcApply')}</button>
+                    )}
+                    <button onClick={() => setRecalcPreview(null)} disabled={recalcLoading} className="admin-btn">{t('admin.recalcCancel')}</button>
+                  </div>
+                </div>
+              )}
 
               {/* Season management */}
               <div className="admin-season-section">
@@ -337,6 +452,13 @@ export default function AdminPanel() {
                 </button>
                 <span className="admin-season-hint">{lang === 'pt' ? 'Arquiva o histórico e zera os scores. Requer confirmação dupla.' : 'Archives history and resets scores. Requires double confirmation.'}</span>
               </div>
+            </div>
+
+            {/* Raid/boss image overrides */}
+            <div className="admin-settings">
+              <div className="admin-section-label">{t('admin.raidImages')}</div>
+              <div className="admin-formula-item">{t('admin.raidImagesDesc')}</div>
+              <RaidImageEditor images={raidImages} onSave={saveRaidImage} t={t} />
             </div>
 
             {/* Characters section */}
@@ -393,6 +515,70 @@ export default function AdminPanel() {
         ) : (
           <div className="admin-loading">{t('admin.loading')}</div>
         )}
+      </div>
+    </div>
+  )
+}
+
+type RaidImageRow = { id?: string; entityType: string; name: string; imageFile: string }
+
+function RaidImageEditor({ images, onSave, t }: {
+  images: RaidImageRow[]
+  onSave: (entityType: string, name: string, imageFile: string) => Promise<void>
+  t: (key: any) => string
+}) {
+  const [newType, setNewType] = useState<'boss' | 'raid'>('boss')
+  const [newName, setNewName] = useState('')
+  const [newFile, setNewFile] = useState('')
+  const [edits, setEdits] = useState<Record<string, string>>({})
+
+  const rowKey = (r: RaidImageRow) => `${r.entityType}:${r.name}`
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {images.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {images.map(img => {
+            const key = rowKey(img)
+            const value = edits[key] ?? img.imageFile
+            return (
+              <div key={key} className="admin-field-row">
+                <label className="admin-label">{img.entityType === 'raid' ? '🏰' : '👹'} {img.name}</label>
+                <input
+                  className="admin-input"
+                  value={value}
+                  onChange={e => setEdits({ ...edits, [key]: e.target.value })}
+                  placeholder="ui-ej-boss-....png"
+                />
+                <button
+                  className="admin-btn"
+                  onClick={() => onSave(img.entityType, img.name, value)}
+                >{t('admin.save')}</button>
+                <button
+                  className="admin-btn admin-btn--danger"
+                  onClick={() => onSave(img.entityType, img.name, '')}
+                >×</button>
+              </div>
+            )
+          })}
+        </div>
+      )}
+      <div className="admin-field-row">
+        <select className="admin-input" style={{ flex: '0 0 100px', minWidth: 100 }} value={newType} onChange={e => setNewType(e.target.value as 'boss' | 'raid')}>
+          <option value="boss">Boss</option>
+          <option value="raid">Raid</option>
+        </select>
+        <input className="admin-input" placeholder={t('admin.raidImages')} value={newName} onChange={e => setNewName(e.target.value)} />
+        <input className="admin-input" placeholder="ui-ej-boss-....png" value={newFile} onChange={e => setNewFile(e.target.value)} />
+        <button
+          className="admin-btn"
+          disabled={!newName.trim() || !newFile.trim()}
+          onClick={async () => {
+            await onSave(newType, newName.trim(), newFile.trim())
+            setNewName('')
+            setNewFile('')
+          }}
+        >{t('admin.save')}</button>
       </div>
     </div>
   )

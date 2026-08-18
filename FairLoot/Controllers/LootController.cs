@@ -13,11 +13,13 @@ namespace FairLoot.Controllers
     {
         private readonly AppDbContext _context;
         private readonly WowAuditService _wow;
+        private readonly BlizzardService _blizzard;
 
-        public LootController(AppDbContext context, WowAuditService wow)
+        public LootController(AppDbContext context, WowAuditService wow, BlizzardService blizzard)
         {
             _context = context;
             _wow = wow;
+            _blizzard = blizzard;
         }
 
         // map difficulty string to award multiplier
@@ -48,6 +50,18 @@ namespace FairLoot.Controllers
                 var season = await _context.Seasons.FirstOrDefaultAsync(s => s.Id == seasonId.Value && s.GuildId == user!.GuildId);
                 if (season != null)
                     query = query.Where(d => d.CreatedAt >= season.StartedAt && d.CreatedAt <= season.EndedAt);
+            }
+            else
+            {
+                // no seasonId = "current season" (this is what the frontend's default/"current" view calls).
+                // Scope it to since the last finalized season's end, same as FinalizeSeason/Suggest — otherwise
+                // this returns the guild's ENTIRE lifetime history, silently re-mixing archived seasons back in.
+                var lastSeason = await _context.Seasons
+                    .Where(s => s.GuildId == user!.GuildId)
+                    .OrderByDescending(s => s.EndedAt)
+                    .FirstOrDefaultAsync();
+                if (lastSeason != null)
+                    query = query.Where(d => d.CreatedAt > lastSeason.EndedAt);
             }
 
             var drops = await query
@@ -126,6 +140,34 @@ namespace FairLoot.Controllers
                 .GroupBy(d => d.AssignedTo)
                 .ToDictionary(g => g.Key, g => g.Max(d => d.CreatedAt));
 
+            // optional score decay for the β fairness factor: older loot counts for less,
+            // so a long dry spell recovers priority instead of a season score staying flat forever.
+            // computed on the fly from history (Character.Score itself stays the flat, undecayed total
+            // for display/transparency and for recalculate-scores).
+            var decayHalfLifeDays = user.Guild?.ScoreDecayHalfLifeDays ?? 0;
+            var decayedScoreByChar = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+            if (decayHalfLifeDays > 0)
+            {
+                // scoped to the current season, same as Character.Score (which FinalizeSeason zeroes at
+                // each season close) — decay only changes flat-sum vs time-weighted-sum, not the timeframe.
+                var lastSeason = await _context.Seasons
+                    .Where(s => s.GuildId == user!.GuildId)
+                    .OrderByDescending(s => s.EndedAt)
+                    .FirstOrDefaultAsync();
+                var seasonStart = lastSeason?.EndedAt ?? DateTime.MinValue;
+
+                var scoredDrops = await _context.LootDrops
+                    .Where(d => d.GuildId == user!.GuildId && !d.IsReverted && d.AwardValue > 0 && d.AssignedTo != "" && d.CreatedAt >= seasonStart)
+                    .ToListAsync();
+                var now = DateTime.UtcNow;
+                foreach (var d in scoredDrops)
+                {
+                    var daysAgo = Math.Max(0, (now - d.CreatedAt).TotalDays);
+                    var decayed = d.AwardValue * Math.Pow(0.5, daysAgo / decayHalfLifeDays);
+                    decayedScoreByChar[d.AssignedTo] = decayedScoreByChar.TryGetValue(d.AssignedTo, out var acc) ? acc + decayed : decayed;
+                }
+            }
+
             var responses = new List<SuggestionResponse>();
 
             foreach (var item in req.Items)
@@ -161,7 +203,9 @@ namespace FairLoot.Controllers
                         }
                     }
 
-                    var overall = dbChars.TryGetValue(ch.Name, out var charDb) ? charDb.Score : 0;
+                    var overall = decayHalfLifeDays > 0
+                        ? (decayedScoreByChar.TryGetValue(ch.Name, out var decayedVal) ? decayedVal : 0)
+                        : (dbChars.TryGetValue(ch.Name, out var charDb) ? charDb.Score : 0);
                     var lootCount = lootCountByChar.TryGetValue(ch.Name, out var lc) ? lc : 0;
                     var lastLoot = lastLootByChar.TryGetValue(ch.Name, out var ll) ? (DateTime?)ll : null;
                     var isNew = dbChars.TryGetValue(ch.Name, out var charNew) && charNew.IsNewPlayer;
@@ -240,6 +284,13 @@ namespace FairLoot.Controllers
 
             var drops = new List<Domain.LootDrop>();
 
+            // load all guild characters once to avoid one round-trip per allocation (N+1)
+            var dbChars = (await _context.Characters
+                .Where(c => c.GuildId == user!.GuildId)
+                .ToListAsync())
+                .GroupBy(c => c.Name)
+                .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+
             foreach (var alloc in req.Allocations)
             {
                 // consistent award: 1.0 per item received (score = total items received)
@@ -248,7 +299,7 @@ namespace FairLoot.Controllers
                 var isTransmog = string.IsNullOrEmpty(alloc.AssignedTo);
                 // award depends on difficulty: normal=0.5, heroic=1.0, mythic=1.5
                 double award = 0;
-                if (!isTransmog && !alloc.IsSingleUpgrade)
+                if (!isTransmog && !alloc.IsSingleUpgrade && !alloc.IsManualAssignment)
                 {
                     award = AwardForDifficulty(alloc.Difficulty);
                 }
@@ -263,17 +314,17 @@ namespace FairLoot.Controllers
                     AssignedTo = alloc.AssignedTo,
                     CreatedAt = DateTime.UtcNow,
                     AwardValue = award,
-                    Note = alloc.Note
+                    Note = alloc.Note,
+                    IsManualAssignment = alloc.IsManualAssignment
                 };
 
                 drops.Add(drop);
                 _context.LootDrops.Add(drop);
 
-                // update character score in DB (add award)
-                if (!isTransmog && !string.IsNullOrEmpty(alloc.AssignedTo))
+                // update character score in DB (add award) — manual assignments never touch score
+                if (!isTransmog && !alloc.IsManualAssignment && !string.IsNullOrEmpty(alloc.AssignedTo))
                 {
-                    var chDb = await _context.Characters.FirstOrDefaultAsync(c => c.GuildId == user.GuildId && c.Name == alloc.AssignedTo);
-                    if (chDb != null)
+                    if (dbChars.TryGetValue(alloc.AssignedTo, out var chDb))
                     {
                         chDb.Score += award;
                     }
@@ -285,25 +336,27 @@ namespace FairLoot.Controllers
             return Ok(new { distributed = drops.Count });
         }
 
-        // POST api/loot/recalculate-scores
-        // Admin endpoint to recompute all character scores from loot history using current award multipliers
+        // POST api/loot/recalculate-scores?dryRun=true
+        // Admin endpoint to recompute all character scores from loot history using current award multipliers.
+        // With dryRun=true, computes the same result but does not save — returns a per-character diff instead.
         [HttpPost("recalculate-scores")]
-        public async Task<IActionResult> RecalculateScores()
+        public async Task<IActionResult> RecalculateScores([FromQuery] bool dryRun = false)
         {
             var (user, error) = await GetAuthenticatedAdminAsync(_context);
             if (error != null) return error;
 
-            // reset all character scores to 0 for this guild
             var chars = await _context.Characters.Where(c => c.GuildId == user!.GuildId).ToListAsync();
+            var oldScores = chars.ToDictionary(c => c.Id, c => c.Score);
             foreach (var c in chars) c.Score = 0;
 
             // consider all non-reverted loot drops for this guild
             var drops = await _context.LootDrops
-                .Where(d => d.GuildId == user.GuildId && !d.IsReverted && !string.IsNullOrEmpty(d.AssignedTo))
+                .Where(d => d.GuildId == user!.GuildId && !d.IsReverted && !string.IsNullOrEmpty(d.AssignedTo))
                 .ToListAsync();
 
-            // use stored AwardValue on each drop so single-upgrade/transmog entries (which have AwardValue=0)
-            // are respected instead of recomputing from Difficulty
+            // use stored AwardValue on each drop so single-upgrade/transmog/manual-assignment entries
+            // (which have AwardValue=0) are respected instead of recomputing from Difficulty.
+            // Manual-assignment drops always carry AwardValue=0 and are never recomputed here.
             foreach (var d in drops)
             {
                 // if the drop has a positive award (was counted previously), update its AwardValue
@@ -318,6 +371,24 @@ namespace FairLoot.Controllers
                 {
                     ch.Score += award;
                 }
+            }
+
+            if (dryRun)
+            {
+                // undo in-memory changes so nothing is persisted, then return the computed diff
+                _context.ChangeTracker.Clear();
+                var diffs = chars
+                    .Select(c => new
+                    {
+                        characterName = c.Name,
+                        oldScore = oldScores.TryGetValue(c.Id, out var old) ? old : 0,
+                        newScore = c.Score,
+                        delta = c.Score - (oldScores.TryGetValue(c.Id, out var old2) ? old2 : 0)
+                    })
+                    .Where(d => Math.Abs(d.delta) > 0.0001)
+                    .OrderByDescending(d => Math.Abs(d.delta))
+                    .ToList();
+                return Ok(new { dryRun = true, dropsConsidered = drops.Count, diffs });
             }
 
             await _context.SaveChangesAsync();
@@ -349,6 +420,102 @@ namespace FairLoot.Controllers
             {
                 result[id] = await _wow.GetWowheadIconAsync(id);
             }
+            return Ok(result);
+        }
+
+        // POST api/loot/raid-image — resolve a raid's banner image. Tries Wowhead's curated guide art first
+        // (matches what admins used to hand-pick), falls back to Blizzard's official journal tile.
+        [HttpPost("raid-image")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ResolveRaidImage([FromBody] RaidImageLookupRequest req)
+        {
+            if (string.IsNullOrWhiteSpace(req?.RaidName)) return Ok(new { url = (string?)null });
+
+            var expansion = await _blizzard.ResolveRaidExpansionNameAsync(req.RaidName);
+            if (expansion != null)
+            {
+                var guide = await _wow.GetWowheadRaidGuideAsync(req.RaidName, expansion);
+                if (!string.IsNullOrEmpty(guide?.HeaderImageUrl))
+                    return Ok(new { url = guide.HeaderImageUrl });
+            }
+
+            // raid overview guide not published yet (common for brand-new content) — try Wowhead's
+            // site search, which often finds individual boss guides before the raid cheat-sheet exists.
+            var searched = await _wow.SearchWowheadRaidGuideAsync(req.RaidName);
+            if (!string.IsNullOrEmpty(searched?.ImageUrl))
+                return Ok(new { url = searched.ImageUrl });
+
+            var url = await _blizzard.ResolveRaidImageAsync(req.RaidName);
+            return Ok(new { url });
+        }
+
+        // POST api/loot/boss-image — resolve a boss's portrait. Tries Wowhead's curated guide icon first
+        // (matches what admins used to hand-pick via devtools), falls back to Blizzard's official 3D render.
+        // RaidName is optional: when known (Loot control screen) it's a fast targeted lookup; when absent
+        // (e.g. Loot History, which doesn't store which raid a drop came from) it searches every instance.
+        [HttpPost("boss-image")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ResolveBossImage([FromBody] BossImageLookupRequest req)
+        {
+            if (string.IsNullOrWhiteSpace(req?.BossName)) return Ok(new { url = (string?)null });
+
+            if (!string.IsNullOrWhiteSpace(req.RaidName))
+            {
+                var expansion = await _blizzard.ResolveRaidExpansionNameAsync(req.RaidName);
+                if (expansion != null)
+                {
+                    var guide = await _wow.GetWowheadRaidGuideAsync(req.RaidName, expansion);
+                    if (guide != null && guide.BossIconByName.TryGetValue(req.BossName, out var icon))
+                        return Ok(new { url = $"https://wow.zamimg.com/images/wow/icons/large/{icon}.jpg" });
+                }
+            }
+
+            // raid overview guide didn't have this boss (often true for brand-new content) — try
+            // Wowhead's site search directly for the boss, which is usually published earlier.
+            var searched = await _wow.SearchWowheadRaidGuideAsync(req.BossName);
+            if (!string.IsNullOrEmpty(searched?.ImageUrl))
+                return Ok(new { url = searched.ImageUrl });
+
+            var url = string.IsNullOrWhiteSpace(req.RaidName)
+                ? await _blizzard.ResolveBossImageByNameAsync(req.BossName)
+                : await _blizzard.ResolveBossImageAsync(req.RaidName, req.BossName);
+            return Ok(new { url });
+        }
+
+        // POST api/loot/raid-name — resolve a raid's localized display name via Blizzard Journal API
+        [HttpPost("raid-name")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ResolveRaidName([FromBody] RaidNameLookupRequest req)
+        {
+            if (string.IsNullOrWhiteSpace(req?.RaidName) || string.IsNullOrWhiteSpace(req?.Locale))
+                return Ok(new { name = (string?)null });
+            var name = await _blizzard.ResolveRaidLocalizedNameAsync(req.RaidName, req.Locale);
+            return Ok(new { name });
+        }
+
+        // POST api/loot/boss-name — resolve a boss's localized display name via Blizzard Journal API
+        [HttpPost("boss-name")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ResolveBossName([FromBody] BossNameLookupRequest req)
+        {
+            if (string.IsNullOrWhiteSpace(req?.BossName) || string.IsNullOrWhiteSpace(req?.Locale))
+                return Ok(new { name = (string?)null });
+            var name = await _blizzard.ResolveBossLocalizedNameAsync(req.RaidName, req.BossName, req.Locale);
+            return Ok(new { name });
+        }
+
+        // POST api/loot/item-names — resolve localized item names (no auth required)
+        [HttpPost("item-names")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ResolveItemNames([FromBody] ItemNamesRequest req)
+        {
+            var result = new Dictionary<int, string?>();
+            var locale = string.IsNullOrWhiteSpace(req?.Locale) ? "en_US" : req.Locale;
+            var ids = (req?.Ids ?? new List<int>()).Distinct().Take(100);
+            var tasks = ids.Select(async id => (id, name: await _wow.GetLocalizedItemNameAsync(id, locale)));
+            var resolved = await Task.WhenAll(tasks);
+            foreach (var (id, name) in resolved)
+                result[id] = name;
             return Ok(result);
         }
     }

@@ -19,6 +19,9 @@ namespace FairLoot.Services
             private static readonly TimeSpan _wishlistCacheTtl = TimeSpan.FromMinutes(5);
             private static readonly TimeSpan _iconNullCacheTtl = TimeSpan.FromHours(2);
             private static readonly SemaphoreSlim _iconSemaphore = new(5, 5);
+        private static readonly ConcurrentDictionary<string, (DateTime Expiry, WowheadGuideData? Data)> _wowheadGuideCache = new();
+        private static readonly TimeSpan _wowheadGuideTtl = TimeSpan.FromHours(24);
+        private static readonly ConcurrentDictionary<string, (DateTime Expiry, WowheadSearchResult? Data)> _wowheadSearchCache = new();
         private readonly BlizzardService? _blizzard;
 
         public WowAuditService(HttpClient http, ILogger<WowAuditService> logger, BlizzardService? blizzard = null)
@@ -615,6 +618,15 @@ namespace FairLoot.Services
             // load guild to get realm/region if available
             var guildEntity = await db.Guilds.FirstOrDefaultAsync(g => g.Id == guildId, cancellationToken);
 
+            // load every guild character once instead of one SELECT per character in the wishlist
+            // (this loop used to run a query per name, and the old deactivation pass below ran a second
+            // full query on top of that — both replaced by this single preload).
+            var existingByName = (await db.Characters
+                .Where(c => c.GuildId == guildId)
+                .ToListAsync(cancellationToken))
+                .GroupBy(c => c.Name)
+                .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+
             // track which names are still present in WowAudit
             var activeNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             int upserts = 0;
@@ -626,14 +638,11 @@ namespace FairLoot.Services
                 // prefer class from characters API; fall back to wishlist data
                 var charClass = classLookup.TryGetValue(ch.Name, out var cls) ? cls : ch.Class;
 
-                var existing = await db.Characters.FirstOrDefaultAsync(
-                    c => c.GuildId == guildId && c.Name == ch.Name, cancellationToken);
-
                 // item-level enrichment disabled
 
-                if (existing == null)
+                if (!existingByName.TryGetValue(ch.Name, out var existing))
                 {
-                    db.Characters.Add(new Character
+                    var newChar = new Character
                     {
                         Id = Guid.NewGuid(),
                         Name = ch.Name,
@@ -643,7 +652,9 @@ namespace FairLoot.Services
                         IsActive = true,
                         GuildId = guildId,
                         // ItemLevel removed — not storing iLevel
-                    });
+                    };
+                    db.Characters.Add(newChar);
+                    existingByName[ch.Name] = newChar;
                     // removed iLevel logging — feature disabled
                 }
                 else
@@ -658,13 +669,10 @@ namespace FairLoot.Services
                 upserts++;
             }
 
-            // deactivate characters that are no longer in WowAudit
-            var allGuildChars = await db.Characters
-                .Where(c => c.GuildId == guildId && c.IsActive)
-                .ToListAsync(cancellationToken);
-            foreach (var c in allGuildChars)
+            // deactivate characters that are no longer in WowAudit (reuses the preload above — no second query)
+            foreach (var c in existingByName.Values)
             {
-                if (!activeNames.Contains(c.Name))
+                if (c.IsActive && !activeNames.Contains(c.Name))
                     c.IsActive = false;
             }
 
@@ -676,5 +684,156 @@ namespace FairLoot.Services
         {
             try { return el.GetInt32(); } catch { return null; }
         }
+
+        /// <summary>Boss icon names + header art scraped from a Wowhead raid guide page (curated, matches
+        /// the "Encounter Journal" style art admins previously extracted by hand via devtools).</summary>
+        public async Task<WowheadGuideData?> GetWowheadRaidGuideAsync(string raidName, string expansionName)
+        {
+            var cacheKey = $"{expansionName}|{raidName}".ToLowerInvariant();
+            if (_wowheadGuideCache.TryGetValue(cacheKey, out var cached) && cached.Expiry > DateTime.UtcNow)
+                return cached.Data;
+
+            try
+            {
+                var raidSlug = SlugifyForWowhead(raidName);
+                var expSlug = SlugifyForWowhead(expansionName);
+                var url = $"https://www.wowhead.com/guide/{expSlug}/raids/{raidSlug}-overview-location-rewards-bosses";
+                var req = new HttpRequestMessage(HttpMethod.Get, url);
+                req.Headers.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64)");
+                var res = await _http.SendAsync(req);
+                if (!res.IsSuccessStatusCode)
+                {
+                    _wowheadGuideCache[cacheKey] = (DateTime.UtcNow.Add(_wowheadGuideTtl), null);
+                    return null;
+                }
+
+                var html = await res.Content.ReadAsStringAsync();
+                var data = new WowheadGuideData();
+
+                var headerMatch = Regex.Match(html, @"uploads\\?/guide\\?/header\\?/([a-f0-9]+)\.jpg", RegexOptions.IgnoreCase);
+                if (headerMatch.Success)
+                    data.HeaderImageUrl = $"https://wow.zamimg.com/uploads/guide/header/{headerMatch.Groups[1].Value}.jpg";
+
+                // each boss appears as a guide nav-item: [nav-item=/guide/.../{slug}-boss-strategy-abilities icon=ICON]Name[/nav-item]
+                var navItemRegex = new Regex(@"nav-item=\\?/guide\\?/[^\s\]]*?boss-strategy-abilities icon=([a-z0-9_]+)\]([^\[]+)\[\\?/nav-item\]", RegexOptions.IgnoreCase);
+                foreach (Match m in navItemRegex.Matches(html))
+                {
+                    var icon = m.Groups[1].Value;
+                    var name = System.Net.WebUtility.HtmlDecode(m.Groups[2].Value.Trim());
+                    if (!string.IsNullOrEmpty(name)) data.BossIconByName[name] = icon;
+                }
+
+                _wowheadGuideCache[cacheKey] = (DateTime.UtcNow.Add(_wowheadGuideTtl), data);
+                return data;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Failed to fetch Wowhead guide for {Raid}/{Expansion}", raidName, expansionName);
+                _wowheadGuideCache[cacheKey] = (DateTime.UtcNow.Add(_wowheadGuideTtl), null);
+                return null;
+            }
+        }
+
+        private static string SlugifyForWowhead(string s) => s.Trim().ToLowerInvariant().Replace("'", "").Replace("'", "").Replace(" ", "-");
+
+        /// <summary>
+        /// Search Wowhead's site search for a raid/boss guide and return its representative image —
+        /// more robust than guessing guide URLs (works even for brand-new content that doesn't have a
+        /// raid overview page yet, since Wowhead often publishes individual boss guides first).
+        /// </summary>
+        public async Task<WowheadSearchResult?> SearchWowheadRaidGuideAsync(string query)
+        {
+            var cacheKey = query.Trim().ToLowerInvariant();
+            if (_wowheadSearchCache.TryGetValue(cacheKey, out var cached) && cached.Expiry > DateTime.UtcNow)
+                return cached.Data;
+
+            try
+            {
+                var url = $"https://www.wowhead.com/search?q={Uri.EscapeDataString(query)}";
+                var req = new HttpRequestMessage(HttpMethod.Get, url);
+                req.Headers.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64)");
+                var res = await _http.SendAsync(req);
+                if (!res.IsSuccessStatusCode)
+                {
+                    _wowheadSearchCache[cacheKey] = (DateTime.UtcNow.Add(_wowheadGuideTtl), null);
+                    return null;
+                }
+
+                var html = await res.Content.ReadAsStringAsync();
+                WowheadSearchResult? best = null;
+
+                // search results are embedded as several <script type="application/json" id="data.wowhead-guid...">[...]</script>
+                // blocks; the "Raids" guide bucket (category 18) is the one we want.
+                var blockRegex = new Regex("<script type=\"application/json\" id=\"data\\.wowhead-guid[^\"]*\">(\\[.*?\\])</script>", RegexOptions.Singleline);
+                foreach (Match m in blockRegex.Matches(html))
+                {
+                    try
+                    {
+                        using var doc = JsonDocument.Parse(m.Groups[1].Value);
+                        if (doc.RootElement.ValueKind != JsonValueKind.Array) continue;
+                        foreach (var item in doc.RootElement.EnumerateArray())
+                        {
+                            if (item.TryGetProperty("category", out var cat) && cat.ValueKind == JsonValueKind.Number && cat.GetInt32() == 18
+                                && item.TryGetProperty("image", out var img) && img.ValueKind == JsonValueKind.String)
+                            {
+                                best = new WowheadSearchResult
+                                {
+                                    ImageUrl = img.GetString(),
+                                    Url = item.TryGetProperty("url", out var u) && u.ValueKind == JsonValueKind.String ? u.GetString() : null,
+                                    Title = item.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString() : null,
+                                };
+                                break;
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        // not a JSON array we care about — skip
+                    }
+                    if (best != null) break;
+                }
+
+                _wowheadSearchCache[cacheKey] = (DateTime.UtcNow.Add(_wowheadGuideTtl), best);
+                return best;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Failed to search Wowhead guide for {Query}", query);
+                _wowheadSearchCache[cacheKey] = (DateTime.UtcNow.Add(_wowheadGuideTtl), null);
+                return null;
+            }
+        }
+
+        // Localized item name via Blizzard API, cached in-memory per item+locale.
+        public async Task<string?> GetLocalizedItemNameAsync(int itemId, string locale)
+        {
+            if (_blizzard == null) return null;
+            var key = $"{itemId}:{locale}";
+            if (_itemNameCache.TryGetValue(key, out var cached)) return cached;
+            string? name = null;
+            try
+            {
+                name = await _blizzard.GetItemNameAsync(itemId, locale);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "failed to fetch localized item name for {ItemId} locale {Locale}", itemId, locale);
+            }
+            _itemNameCache[key] = name;
+            return name;
+        }
+    }
+
+    public class WowheadGuideData
+    {
+        public string? HeaderImageUrl { get; set; }
+        public Dictionary<string, string> BossIconByName { get; } = new(StringComparer.OrdinalIgnoreCase);
+    }
+
+    public class WowheadSearchResult
+    {
+        public string? ImageUrl { get; set; }
+        public string? Url { get; set; }
+        public string? Title { get; set; }
     }
 }

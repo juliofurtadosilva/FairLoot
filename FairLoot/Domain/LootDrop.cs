@@ -16,5 +16,7 @@ namespace FairLoot.Domain
         public string? Note { get; set; }
         public bool IsReverted { get; set; } = false;
         public DateTime? RevertedAt { get; set; }
+        // true when the admin manually assigned this item outside the suggestion algorithm — no score impact.
+        public bool IsManualAssignment { get; set; } = false;
     }
 }

@@ -19,7 +19,7 @@
   position:relative;
   height:38px;
   padding:0 10px;
-  border-radius:6px;
+  border-radius: 4px;
   border:1px solid var(--border);
   background:var(--input-bg);
   box-sizing:border-box;
@@ -39,7 +39,7 @@
 .lh-toggle-switch{
   width:34px;
   height:22px;
-  border-radius:12px;
+  border-radius: 4px;
   background:var(--glass);
   display:inline-block;
   position:relative;
@@ -74,7 +74,7 @@
 
 .lh-input, .lh-select{
   padding:6px 10px;
-  border-radius:6px;
+  border-radius: 4px;
   border:1px solid var(--border);
   background:var(--input-bg);
   color:var(--text);
@@ -107,7 +107,7 @@
 
 .lh-load-more-btn{
   padding:8px 28px;
-  border-radius:6px;
+  border-radius: 4px;
   border:1px solid var(--accent);
   background:rgba(var(--accent-rgb),0.08);
   color:var(--accent);
@@ -187,7 +187,7 @@
 .lh-item-header img{
   width:28px;
   height:28px;
-  border-radius:4px;
+  border-radius: 4px;
   flex-shrink:0;
 }
 
@@ -195,7 +195,7 @@
   width:28px;
   height:28px;
   background:var(--panel-bg);
-  border-radius:4px;
+  border-radius: 4px;
   flex-shrink:0;
 }
 
@@ -263,6 +263,15 @@
   margin-left:6px;
 }
 
+.lh-assigned-manual{
+  color:var(--color-noscore);
+  margin-left:6px;
+  font-size:10px;
+  text-transform:uppercase;
+  letter-spacing:0.5px;
+  font-weight:700;
+}
+
 .lh-reverted-info{
   font-size:10px;
   color:#ef4444;
@@ -297,7 +306,7 @@
 .lh-undo-btn{
   font-size:10px;
   padding:3px 10px;
-  border-radius:4px;
+  border-radius: 4px;
   border:1px solid rgba(239,68,68,0.4);
   background:rgba(239,68,68,0.08);
   color:#ef4444;
@@ -318,30 +327,42 @@
   font-weight:700;
   color:var(--muted);
   padding:6px 8px;
-  border-radius:6px;
+  border-radius: 4px;
   background: var(--panel-bg);
   display:flex;
   align-items:center;
   gap:8px;
 }
 
-.lh-boss-icon { width: 72px; height: 46px; border-radius:6px; object-fit:cover; flex-shrink:0; }
+.lh-boss-icon { width: 72px; height: 46px; border-radius: 4px; object-fit:cover; flex-shrink:0; }
 
 /* Larger boss image used in Loot control: wider and shorter to match Wowhead style */
-.loot-boss-large { width: 80px; height: 46px; border-radius:8px; object-fit:cover; object-position:center; image-rendering:auto; }
+.loot-boss-large { height: 40px; border-radius: 4px; object-fit:cover; object-position:center; image-rendering:auto; flex-shrink: 0; }
 
-/* Boss button: wider and lower rectangle */
-.boss-select-btn { width: 120px; min-width: 100px; height: 84px; display: inline-flex; align-items: center; justify-content: center; padding: 6px 8px; }
+/* Boss button: fixed-size rectangle — flex-shrink/grow locked to 0 so every button in the row stays
+   the exact same size regardless of name length or how many bosses/items the raid has. */
+.boss-select-btn {
+  width: 140px;
+  min-width: 140px;
+  max-width: 140px;
+  height: 88px;
+  flex: 0 0 140px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 8px;
+  box-sizing: border-box;
+}
 
 @media (max-width: 900px) {
-  .boss-select-btn { width: 100px; height: 72px; }
-  .loot-boss-large { width: 72px; height: 44px; }
+  .boss-select-btn { width: 112px; min-width: 112px; max-width: 112px; height: 76px; flex-basis: 112px; }
+  .loot-boss-large { width: 78px; height: 46px; }
   .lh-boss-icon { width: 64px; height: 44px; }
 }
 
 @media (max-width: 600px) {
-  .boss-select-btn { width: 88px; height: 64px; }
-  .loot-boss-large { width: 64px; height: 40px; }
+  .boss-select-btn { width: 96px; min-width: 96px; max-width: 96px; height: 68px; flex-basis: 96px; }
+  .loot-boss-large { width: 68px; height: 42px; }
   .lh-boss-icon { width: 52px; height: 36px; }
   /* ensure enough bottom padding so distribute button is reachable on small screens */
   .loot-panel { padding-bottom: 260px !important; }
@@ -354,6 +375,235 @@
   width: 100%;
 }
 
+/* Redistribute panel (fixed, bottom-right toast-like panel shown after undo) */
+.lh-redistribute-panel{
+  position:fixed;
+  bottom:24px;
+  right:24px;
+  z-index:1000;
+  background:var(--card);
+  border:1.5px solid var(--accent);
+  border-radius: 4px;
+  padding:16px 20px;
+  width:320px;
+  max-width:calc(100vw - 48px);
+  box-shadow:0 8px 32px rgba(0,0,0,0.45);
+  animation:slideInRight 0.3s ease-out;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+
+.lh-redistribute-header{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+
+.lh-redistribute-title{
+  font-weight:700;
+  font-size:13px;
+}
+
+.lh-redistribute-close{
+  background:none;
+  border:none;
+  cursor:pointer;
+  color:var(--muted);
+  font-size:16px;
+  padding:0 4px;
+  line-height:1;
+}
+
+.lh-redistribute-item{
+  font-size:12px;
+  font-weight:600;
+}
+
+.lh-redistribute-meta{
+  font-size:10px;
+  color:var(--muted);
+}
+
+.lh-redistribute-candidates{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  max-height:180px;
+  overflow-y:auto;
+}
+
+.lh-redistribute-transmog{
+  color:var(--color-transmog);
+  font-weight:700;
+  font-size:10px;
+  letter-spacing:1px;
+  text-transform:uppercase;
+  text-align:center;
+  padding:4px 0;
+}
+
+.lh-redistribute-candidate{
+  padding:6px 10px;
+  border-radius: 4px;
+  font-size:11px;
+  border:1px solid var(--border);
+  background:transparent;
+  text-align:left;
+  cursor:pointer;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  color:var(--text);
+}
+
+.lh-redistribute-candidate--selected{
+  border:2px solid var(--color-yellow);
+  background:rgba(var(--accent-rgb),0.10);
+}
+
+.lh-redistribute-candidate-name{
+  font-weight:600;
+}
+
+.lh-redistribute-candidate-meta{
+  font-size:9px;
+  color:var(--muted);
+  margin-left:6px;
+  flex-shrink:0;
+}
+
+.lh-redistribute-actions{
+  display:flex;
+  gap:8px;
+  margin-top:4px;
+}
+
+.lh-redistribute-confirm{
+  flex:1;
+  padding:7px 12px;
+  border-radius: 4px;
+  font-size:12px;
+  font-weight:700;
+  border:1px solid rgba(var(--accent-rgb),0.4);
+  background:rgba(var(--accent-rgb),0.12);
+  cursor:pointer;
+  color:var(--text);
+
+  &:disabled{
+    cursor:default;
+    opacity:0.5;
+  }
+}
+
+.lh-redistribute-dismiss{
+  padding:7px 12px;
+  border-radius: 4px;
+  font-size:12px;
+  border:1px solid var(--border);
+  background:transparent;
+  cursor:pointer;
+  color:var(--muted);
+}
+
+/* Guild score ranking + formula explainer (Reader-visible transparency) */
+.lh-score-section{
+  width:100%;
+  margin-bottom:16px;
+}
+
+.lh-score-title{
+  margin:0 0 4px;
+  font-size:15px;
+  font-weight:700;
+  color:var(--accent);
+}
+
+.lh-score-desc{
+  margin:0 0 10px;
+  font-size:12px;
+  color:var(--muted);
+  line-height:1.5;
+}
+
+.lh-score-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(260px, 1fr));
+  gap:10px;
+}
+
+.lh-score-card{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:12px 14px;
+  border-radius: 4px;
+  background:var(--panel-bg);
+  transition:background 0.15s;
+
+  &:hover{
+    background:var(--glass);
+  }
+}
+
+.lh-score-icon{
+  width:28px;
+  height:28px;
+  border-radius: 4px;
+  flex-shrink:0;
+}
+
+.lh-score-name{
+  flex:1;
+  min-width:0;
+  font-size:14px;
+  font-weight:600;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+.lh-score-value{
+  font-size:14px;
+  font-weight:700;
+  color:var(--muted);
+  flex-shrink:0;
+}
+
+// no border/background box — just a divider under the score grid, so expanding it
+// reads as more content flowing in, not a container growing
+.lh-formula-box{
+  margin-top:14px;
+  padding-top:10px;
+  border-top:1px solid var(--border);
+}
+
+.lh-formula-toggle{
+  padding:2px 0;
+  cursor:pointer;
+  user-select:none;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  font-size:12px;
+  font-weight:600;
+  color:var(--color-transmog);
+}
+
+.lh-formula-content{
+  padding:12px 0 0;
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));
+  gap:10px;
+}
+
+.lh-formula-item{
+  font-size:11px;
+  color:var(--muted);
+  line-height:1.6;
+  text-align:justify;
+}
+
 /* Layout helpers for Loot page (raid thumbnails + bosses) */
 .loot-top-row { width: 100%; display: flex; gap: 20px; align-items: flex-start; }
 .loot-raid-column { display: flex; gap: 12px; align-items: flex-start; }
@@ -362,7 +612,7 @@
 .raid-thumb {
   width: 160px;
   height: 120px;
-  border-radius: 12px;
+  border-radius: 4px;
   background-position: center;
   background-size: cover;
   border: 2px solid var(--muted);
@@ -370,8 +620,9 @@
   cursor: pointer;
   display: inline-block;
   overflow: hidden;
+  flex-shrink: 0;
 }
-.raid-item { display:flex; flex-direction:column; align-items:center; gap:4px; }
+.raid-item { display:flex; flex-direction:column; align-items:center; gap:4px; flex: 0 0 auto; }
 .raid-item.disabled { pointer-events: none; }
 .raid-item.disabled .raid-thumb { filter: grayscale(100%) brightness(0.6); }
 .raid-name { color: var(--muted); font-size: 13px; }

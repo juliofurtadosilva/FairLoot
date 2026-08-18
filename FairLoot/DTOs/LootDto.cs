@@ -8,6 +8,36 @@ namespace FairLoot.DTOs
         public List<SuggestItem> Items { get; set; } = new List<SuggestItem>();
     }
 
+    public class ItemNamesRequest
+    {
+        public List<int> Ids { get; set; } = new List<int>();
+        public string? Locale { get; set; }
+    }
+
+    public class RaidImageLookupRequest
+    {
+        public string? RaidName { get; set; }
+    }
+
+    public class BossImageLookupRequest
+    {
+        public string? RaidName { get; set; }
+        public string? BossName { get; set; }
+    }
+
+    public class RaidNameLookupRequest
+    {
+        public string? RaidName { get; set; }
+        public string? Locale { get; set; }
+    }
+
+    public class BossNameLookupRequest
+    {
+        public string? RaidName { get; set; }
+        public string? BossName { get; set; }
+        public string? Locale { get; set; }
+    }
+
     public class SuggestItem
     {
         public int? ItemId { get; set; }
@@ -57,5 +87,7 @@ namespace FairLoot.DTOs
         public string Difficulty { get; set; } = string.Empty;
         public string? Note { get; set; }
         public bool IsSingleUpgrade { get; set; }
+        // manual assignment outside the suggestion algorithm — always award 0, no score impact.
+        public bool IsManualAssignment { get; set; }
     }
 }

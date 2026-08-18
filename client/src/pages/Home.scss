@@ -23,7 +23,7 @@
   font-size:12px;
   padding:6px 10px;
   font-weight:700;
-  border-radius:8px;
+  border-radius: 4px;
   border:1px solid var(--border);
   background:var(--surface);
   color:var(--text);
@@ -33,7 +33,7 @@
 .home-lateral-left{
   flex:0 0 280px;
   height:420px;
-  border-radius:16px 0 0 16px;
+  border-radius: 4px 0 0 4px;
   background-size:cover;
   background-position:center;
   background-repeat:no-repeat;
@@ -42,7 +42,7 @@
 .home-lateral-right{
   flex:0 0 280px;
   height:420px;
-  border-radius:0 16px 16px 0;
+  border-radius: 0 4px 4px 0;
   background-size:cover;
   background-position:center;
   background-repeat:no-repeat;
@@ -103,7 +103,7 @@
   padding:10px 0;
   font-size:15px;
   font-weight:600;
-  border-radius:8px;
+  border-radius: 4px;
   border:1px solid rgba(var(--accent-rgb),0.4);
   background:rgba(var(--accent-rgb),0.14);
   color:var(--text);
@@ -115,7 +115,7 @@
   padding:10px 0;
   font-size:15px;
   font-weight:600;
-  border-radius:8px;
+  border-radius: 4px;
   border:1px solid var(--border);
   background:transparent;
   color:var(--text);
@@ -127,7 +127,7 @@
   padding:10px 0;
   font-size:13px;
   font-weight:600;
-  border-radius:8px;
+  border-radius: 4px;
   border:1px solid rgba(250,204,21,0.35);
   background:transparent;
   color:#facc15;
@@ -146,7 +146,7 @@
   padding:10px 0;
   font-size:15px;
   font-weight:600;
-  border-radius:8px;
+  border-radius: 4px;
   background:linear-gradient(135deg, #006aff 0%, #0050cc 100%);
   border:1px solid #006aff;
   color:#fff;
@@ -171,7 +171,7 @@
   width:100%;
   box-sizing:border-box;
   padding:6px 8px;
-  border-radius:6px;
+  border-radius: 4px;
   border:1px solid var(--border);
   background:var(--surface);
   color:var(--text);
@@ -199,7 +199,7 @@
 
 .home-char-item{
   padding:8px 10px;
-  border-radius:6px;
+  border-radius: 4px;
   display:flex;
   justify-content:space-between;
   align-items:center;
@@ -265,7 +265,7 @@
 .home-guild-info{
   width:100%;
   padding:8px 10px;
-  border-radius:6px;
+  border-radius: 4px;
   background:rgba(var(--accent-rgb),0.06);
   border:1px solid var(--border);
   font-size:12px;
@@ -330,7 +330,7 @@
   padding:10px 0;
   font-size:15px;
   font-weight:600;
-  border-radius:8px;
+  border-radius: 4px;
   border:1px solid rgba(var(--accent-rgb),0.4);
   background:rgba(var(--accent-rgb),0.14);
   color:var(--text);
@@ -350,7 +350,7 @@
 
 .home-account-item{
   padding:12px 14px;
-  border-radius:8px;
+  border-radius: 4px;
   border:1px solid var(--border);
   background:transparent;
   display:flex;
@@ -407,7 +407,7 @@
 .home-pending-box{
   width:100%;
   padding:12px 14px;
-  border-radius:8px;
+  border-radius: 4px;
   background:rgba(250,204,21,0.08);
   border:1px solid rgba(250,204,21,0.25);
   font-size:13px;

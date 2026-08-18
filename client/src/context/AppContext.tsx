@@ -10,6 +10,7 @@ export type Lang = 'pt' | 'en'
 
 const translations = {
   // nav / tabs
+  'nav.home': { pt: 'Início', en: 'Home' },
   'nav.loot': { pt: 'Controle de Loot', en: 'Loot Control' },
   'nav.members': { pt: 'Membros', en: 'Members' },
   'nav.wishlist': { pt: 'Wishlist', en: 'Wishlist' },
@@ -28,7 +29,7 @@ const translations = {
   // dashboard
   'dash.welcome': { pt: 'Bem-vindo(a) ao FairLoot!', en: 'Welcome to FairLoot!' },
   'dash.subtitle': { pt: 'Sistema justo de distribuição de loot para sua guild.', en: 'Fair loot distribution system for your guild.' },
-  'dash.featTitle': { pt: '✨ Funcionalidades — v1.0', en: '✨ Features — v1.0' },
+  'dash.featTitle': { pt: 'Funcionalidades — v1.0', en: 'Features — v1.0' },
   'dash.feat.loot': { pt: 'Controle de Loot', en: 'Loot Control' },
   'dash.feat.lootDesc': { pt: 'Selecione raid, boss e itens. O sistema sugere quem deve receber cada item.', en: 'Select raid, boss, and items. The system suggests who should receive each item.' },
   'dash.feat.wishlist': { pt: 'Wishlist (WowAudit)', en: 'Wishlist (WowAudit)' },
@@ -55,7 +56,7 @@ const translations = {
   'dash.step2Desc': { pt: 'Durante a raid, o Admin seleciona a dificuldade, boss e os itens que droparam. O sistema calcula a prioridade de cada jogador com base no upgrade (α), score acumulado (β) e loot recente (γ).', en: 'During the raid, the Admin selects the difficulty, boss, and dropped items. The system calculates each player\'s priority based on upgrade (α), accumulated score (β), and recent loot (γ).' },
   'dash.step3Title': { pt: 'Distribuição Justa', en: 'Fair Distribution' },
   'dash.step3Desc': { pt: 'O sistema sugere automaticamente quem deve receber cada item. O Admin pode ajustar e confirmar. Itens sem upgrade viram transmog. Todo o histórico fica registrado.', en: 'The system automatically suggests who should receive each item. The Admin can adjust and confirm. Items with no upgrade become transmog. All history is recorded.' },
-  'dash.outdatedTitle': { pt: '⚠️ SimC Desatualizado', en: '⚠️ Outdated SimC' },
+  'dash.outdatedTitle': { pt: 'SimC Desatualizado', en: 'Outdated SimC' },
   'dash.outdatedDesc': { pt: 'Os seguintes jogadores têm itens com wishlist desatualizada e precisam atualizar seu SimC:', en: 'The following players have items with outdated wishlist and need to update their SimC:' },
   'dash.outdatedItems': { pt: 'itens desatualizados', en: 'outdated items' },
   'dash.outdatedDay': { pt: 'dia', en: 'day' },
@@ -98,6 +99,7 @@ const translations = {
   'loot.instanceBoss': { pt: 'Instância / Boss:', en: 'Instance / Boss:' },
   'loot.selectDiffToLoad': { pt: 'Selecione uma dificuldade para carregar raids', en: 'Select a difficulty to load raids' },
   'loot.raid': { pt: 'Raid', en: 'Raid' },
+  'loot.bossLabel': { pt: 'Boss', en: 'Boss' },
   'loot.qty': { pt: 'Qtd', en: 'Qty' },
   'loot.selectDifficulty': { pt: 'Dificuldade', en: 'Difficulty' },
   'loot.available': { pt: 'Itens disponíveis:', en: 'Available items:' },
@@ -120,6 +122,9 @@ const translations = {
   'loot.notePlaceholder': { pt: 'Ex: trade com fulano, item off-spec...', en: 'E.g.: trade with someone, off-spec item...' },
   'loot.dupOn': { pt: 'Permitindo repetir jogador (clique para desativar)', en: 'Allowing duplicate player (click to disable)' },
   'loot.dupOff': { pt: 'Clique para permitir repetir jogador neste item', en: 'Click to allow duplicate player for this item' },
+  'loot.manualAssign': { pt: 'Atribuir manualmente (sem pontuar)', en: 'Manually assign (no score)' },
+  'loot.manualAssignNone': { pt: '-- ninguém --', en: '-- nobody --' },
+  'loot.manualAssignBadge': { pt: 'MANUAL · SEM PONTOS', en: 'MANUAL · NO SCORE' },
 
   // history
   'history.title': { pt: 'Histórico de Loot', en: 'Loot History' },
@@ -214,10 +219,29 @@ const translations = {
   'admin.wowauditChars': { pt: 'personagens', en: 'characters' },
   'admin.seasonFinalize': { pt: 'Finalizar Season', en: 'Finalize Season' },
   'admin.seasonFinalizeConfirm': { pt: 'Finalizar a season atual? Isso vai arquivar o histórico e zerar os scores de todos os personagens.', en: 'Finalize the current season? This will archive the history and reset all character scores.' },
-  'admin.seasonFinalizeConfirm2': { pt: '⚠️ TEM CERTEZA? Essa ação é IRREVERSÍVEL. Todos os scores serão zerados e o histórico será arquivado permanentemente.', en: '⚠️ ARE YOU SURE? This action is IRREVERSIBLE. All scores will be reset and history will be permanently archived.' },
+  'admin.seasonFinalizeConfirm2': { pt: 'TEM CERTEZA? Essa ação é IRREVERSÍVEL. Todos os scores serão zerados e o histórico será arquivado permanentemente.', en: 'ARE YOU SURE? This action is IRREVERSIBLE. All scores will be reset and history will be permanently archived.' },
   'admin.seasonFinalized': { pt: 'Season finalizada com sucesso!', en: 'Season finalized successfully!' },
   'admin.seasonFinalizeError': { pt: 'Erro ao finalizar season', en: 'Error finalizing season' },
   'admin.seasonCurrent': { pt: 'Season atual', en: 'Current season' },
+  'admin.decayLabel': { pt: 'Meia-vida do score (dias)', en: 'Score half-life (days)' },
+  'admin.decayDesc': {
+    pt: '0 = desativado (score acumulado nunca decai, comportamento atual). Quando > 0, o fator β passa a considerar um score que perde metade do peso a cada N dias — quem recebeu loot há muito tempo volta a ter prioridade mais cedo.',
+    en: '0 = disabled (accumulated score never decays, current behavior). When > 0, the β factor uses a score that loses half its weight every N days — players who received loot long ago regain priority sooner.',
+  },
+  'admin.previewIllustrative': { pt: '(% de upgrade ilustrativo — não há um item real neste painel)', en: '(illustrative upgrade % — there\'s no real item on this screen)' },
+  'admin.recalcPreview': { pt: 'Pré-visualizar recálculo', en: 'Preview recalculation' },
+  'admin.recalcPreviewTitle': { pt: 'Impacto do recálculo (nada foi salvo ainda)', en: 'Recalculation impact (nothing saved yet)' },
+  'admin.recalcPreviewEmpty': { pt: 'Nenhuma mudança de score.', en: 'No score changes.' },
+  'admin.recalcPreviewError': { pt: 'Erro ao pré-visualizar recálculo', en: 'Error previewing recalculation' },
+  'admin.recalcApply': { pt: 'Aplicar recálculo', en: 'Apply recalculation' },
+  'admin.recalcCancel': { pt: 'Cancelar', en: 'Cancel' },
+  'admin.raidImages': { pt: 'Imagens de raid/boss', en: 'Raid/boss images' },
+  'admin.raidImagesDesc': {
+    pt: 'Cole o nome do arquivo zamimg (ex: ui-ej-boss-host-general.png) para bosses/raids novos — evita esperar um deploy para exibir a arte quando uma raid nova é lançada.',
+    en: 'Paste the zamimg filename (e.g. ui-ej-boss-host-general.png) for new bosses/raids — avoids waiting on a deploy to show artwork when a new raid launches.',
+  },
+  'admin.raidImagesSaved': { pt: 'Imagem salva', en: 'Image saved' },
+  'admin.raidImagesError': { pt: 'Erro ao salvar imagem', en: 'Error saving image' },
 
   // dashboard chart
   'dash.chartTitle': { pt: 'Distribuição de loot — Season atual', en: 'Loot distribution — Current season' },
@@ -225,6 +249,9 @@ const translations = {
   'dash.chartNoData': { pt: 'Sem dados de loot recente.', en: 'No recent loot data.' },
   'dash.chartSince': { pt: 'Desde', en: 'Since' },
   'dash.chartTimeline': { pt: 'Timeline de distribuições', en: 'Distribution timeline' },
+  'dash.chartNoScoreLegend': { pt: 'A barra escura mostra itens atribuídos manualmente, sem pontuar.', en: 'The dark segment shows manually-assigned items that did not count toward score.' },
+  'dash.chartFilteredBy': { pt: 'Mostrando apenas:', en: 'Showing only:' },
+  'dash.chartFilterClear': { pt: '✕ ver season toda', en: '✕ view whole season' },
 
   // history pagination
   'history.loadMore': { pt: 'Carregar mais', en: 'Load more' },
@@ -233,6 +260,13 @@ const translations = {
   'history.season': { pt: 'Season', en: 'Season' },
   'history.allSeasons': { pt: 'Todas as seasons', en: 'All seasons' },
   'history.currentSeason': { pt: 'Season atual', en: 'Current season' },
+  'history.scoreRankingTitle': { pt: 'Ranking de score da guild', en: 'Guild score ranking' },
+  'history.scoreRankingDesc': {
+    pt: 'Score acumulado de cada personagem (soma ponderada por dificuldade dos itens recebidos). Usado no fator β abaixo.',
+    en: 'Each character\'s accumulated score (difficulty-weighted sum of items received). Used in the β factor below.',
+  },
+  'history.formulaTitle': { pt: 'Como a prioridade é calculada', en: 'How priority is calculated' },
+  'history.manualAssignment': { pt: 'Manual (sem pontos)', en: 'Manual (no score)' },
 } as const
 
 export type TranslationKey = keyof typeof translations

@@ -25,5 +25,7 @@
         public int MinIlevelNormal { get; set; } = 0;
         public int MinIlevelHeroic { get; set; } = 0;
         public int MinIlevelMythic { get; set; } = 0;
+        // half-life (days) for score decay used in the β fairness factor. 0 = decay disabled (default, backward compatible).
+        public int ScoreDecayHalfLifeDays { get; set; } = 0;
     }
 }

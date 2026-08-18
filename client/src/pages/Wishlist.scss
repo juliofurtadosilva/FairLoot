@@ -20,7 +20,7 @@
 .wishlist-search{
   flex:1 1 200px;
   padding:8px 12px;
-  border-radius:8px;
+  border-radius: 4px;
   border:1px solid rgba(var(--accent-rgb),0.3);
   background:var(--input-bg);
   color:var(--text);
@@ -30,7 +30,7 @@
 
 .wishlist-refresh-btn{
   padding:8px 16px;
-  border-radius:8px;
+  border-radius: 4px;
   border:1px solid var(--accent);
   background:rgba(var(--accent-rgb),0.10);
   color:var(--accent);
@@ -42,7 +42,7 @@
 
 .wishlist-raid-select{
   padding:8px 12px;
-  border-radius:8px;
+  border-radius: 4px;
   border:1px solid var(--border);
   background:var(--select-bg);
   color:var(--text);
@@ -72,7 +72,7 @@
 
 .wishlist-char{
   border:1px solid var(--border);
-  border-radius:8px;
+  border-radius: 4px;
   background:var(--surface);
   transition:background 0.2s;
   animation: cardIn 0.35s ease both;
@@ -164,7 +164,7 @@
 
 .wishlist-diff-col{
   background:var(--panel-bg);
-  border-radius:6px;
+  border-radius: 4px;
   padding:8px 10px;
   min-width:0;
   border:1px solid var(--border);
@@ -237,7 +237,7 @@
 .wishlist-item-icon{
   width:14px;
   height:14px;
-  border-radius:2px;
+  border-radius: 4px;
   flex-shrink:0;
 }
 
@@ -279,7 +279,7 @@
 .wishlist-simc-btn{
   width:24px;
   height:24px;
-  border-radius:4px;
+  border-radius: 4px;
   border:2px solid var(--border);
   background:transparent;
   color:var(--muted);
@@ -320,7 +320,7 @@
   font-size:9px;
   font-weight:700;
   padding:1px 4px;
-  border-radius:3px;
+  border-radius: 4px;
   white-space:nowrap;
   line-height:1.3;
 }

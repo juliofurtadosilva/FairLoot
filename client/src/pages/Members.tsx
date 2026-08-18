@@ -97,7 +97,7 @@ export default function Members() {
 
   return (
     <div className="tab-content">
-      <div className="card tab-card" style={{ gap: 20 }}>
+      <div className="tab-card" style={{ gap: 20 }}>
         <h3 className="members-title">{t('members.title')}</h3>
         {error && <div className="members-error">{error}</div>}
 

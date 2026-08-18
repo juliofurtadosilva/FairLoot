@@ -204,7 +204,7 @@ export default function Wishlist() {
 
   return (
     <div className="tab-content">
-      <div className="card tab-card wishlist-card" style={{ padding: '24px 20px', gap: 14 }}>
+      <div className="tab-card wishlist-card" style={{ padding: '1%', gap: 14 }}>
         <h3 className="wishlist-title">{t('wishlist.title')}</h3>
 
         {error && <div className="wishlist-error">{error}</div>}

@@ -236,6 +236,8 @@ namespace FairLoot.Controllers
                 user!.Guild!.MinIlevelHeroic = updatedGuild.MinIlevelHeroic.Value;
             if (updatedGuild.MinIlevelMythic.HasValue)
                 user!.Guild!.MinIlevelMythic = updatedGuild.MinIlevelMythic.Value;
+            if (updatedGuild.ScoreDecayHalfLifeDays.HasValue && updatedGuild.ScoreDecayHalfLifeDays.Value >= 0)
+                user!.Guild!.ScoreDecayHalfLifeDays = updatedGuild.ScoreDecayHalfLifeDays.Value;
 
             await _context.SaveChangesAsync();
             return Ok(user!.Guild);
@@ -318,6 +320,60 @@ namespace FairLoot.Controllers
             await _context.SaveChangesAsync();
 
             return Ok(new { season.Id, season.Name, season.StartedAt, season.EndedAt, dropsArchived = currentDrops });
+        }
+
+        // GET api/guild/raid-images
+        [HttpGet("raid-images")]
+        public async Task<IActionResult> GetRaidImages()
+        {
+            var (user, error) = await GetAuthenticatedUserWithGuildAsync(_context, requireApproval: false);
+            if (error != null) return error;
+
+            var images = await _context.RaidImages
+                .Where(r => r.GuildId == user!.GuildId)
+                .Select(r => new { r.Id, r.EntityType, r.Name, r.ImageFile })
+                .ToListAsync();
+            return Ok(images);
+        }
+
+        // PUT api/guild/raid-images — upsert a single boss/raid image mapping
+        [HttpPut("raid-images")]
+        public async Task<IActionResult> UpsertRaidImage([FromBody] FairLoot.DTOs.RaidImageUpsertDto dto)
+        {
+            var (user, error) = await GetAuthenticatedAdminAsync(_context);
+            if (error != null) return error;
+
+            if (string.IsNullOrWhiteSpace(dto.Name) || (dto.EntityType != "boss" && dto.EntityType != "raid"))
+                return BadRequest("Nome e tipo (boss/raid) são obrigatórios.");
+
+            var existing = await _context.RaidImages.FirstOrDefaultAsync(r =>
+                r.GuildId == user!.GuildId && r.EntityType == dto.EntityType && r.Name == dto.Name);
+
+            if (string.IsNullOrWhiteSpace(dto.ImageFile))
+            {
+                if (existing != null)
+                {
+                    _context.RaidImages.Remove(existing);
+                    await _context.SaveChangesAsync();
+                }
+                return Ok(new { removed = true });
+            }
+
+            if (existing == null)
+            {
+                existing = new Domain.RaidImage
+                {
+                    Id = Guid.NewGuid(),
+                    GuildId = user!.GuildId,
+                    EntityType = dto.EntityType,
+                    Name = dto.Name,
+                };
+                _context.RaidImages.Add(existing);
+            }
+            existing.ImageFile = dto.ImageFile.Trim();
+
+            await _context.SaveChangesAsync();
+            return Ok(new { existing.Id, existing.EntityType, existing.Name, existing.ImageFile });
         }
 
         // DELETE api/guild

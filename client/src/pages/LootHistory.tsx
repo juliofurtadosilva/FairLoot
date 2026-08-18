@@ -6,7 +6,8 @@ import Skeleton from '../components/Skeleton'
 import EmptyState from '../components/EmptyState'
 import './LootHistory.scss'
 import { isDemoMode, getDemoLootHistory, removeDemoLootHistory, deleteDemoLootHistory, getDemoWishlistSummary, getDemoCharacters, getDemoGuild, addDemoLootHistory } from '../services/demoData'
-import { getBossImageUrl } from '../services/bossMap'
+import { getBossImageUrl, resolveBossImageAuto, resolveBossNameAuto } from '../services/bossMap'
+import { getClassIconUrl, getClassColor } from '../services/classIcons'
 
 type LootDrop = {
   id: string
@@ -21,6 +22,7 @@ type LootDrop = {
   createdAt: string
   isReverted?: boolean
   revertedAt?: string
+  isManualAssignment?: boolean
 }
 
 type Candidate = {
@@ -48,7 +50,19 @@ export default function LootHistory() {
   const [error, setError] = useState<string | null>(null)
   const [initialLoading, setInitialLoading] = useState(true)
   const [isAdmin, setIsAdmin] = useState(false)
-  const { t, lang, showConfirm, showAlert } = useApp()
+  const { t, lang, theme, showConfirm, showAlert } = useApp()
+
+  // guild score ranking — visible to all roles for transparency
+  const [scoreRanking, setScoreRanking] = useState<{ name: string; class?: string; score: number }[]>([])
+  const [showFormula, setShowFormula] = useState(false)
+
+  // auto-resolved boss art (Blizzard Journal API, searched by name only — history records don't store
+  // which raid a drop came from) for bosses with no manual/hardcoded image
+  const [autoBossImages, setAutoBossImages] = useState<Record<string, string>>({})
+  const getBossImageResolved = (bossName: string) => getBossImageUrl(bossName) || autoBossImages[bossName] || null
+  // auto-resolved localized (PT) boss names — WowAudit/history only ever stores English names
+  const [autoBossNames, setAutoBossNames] = useState<Record<string, string>>({})
+  const getBossNameResolved = (bossName: string) => (lang === 'pt' && autoBossNames[bossName]) || bossName
 
   // filters
   const [filterPlayer, setFilterPlayer] = useState('')
@@ -138,7 +152,18 @@ export default function LootHistory() {
     }
   }
 
-  useEffect(() => { fetchSeasons(); fetchHistory() }, [])
+  useEffect(() => {
+    fetchSeasons()
+    fetchHistory()
+    if (isDemoMode()) {
+      setScoreRanking(getDemoCharacters().map((c: any) => ({ name: c.name, class: c.class, score: c.score ?? 0 })).sort((a, b) => b.score - a.score))
+    } else {
+      api.get('/api/guild/characters').then(r => {
+        const ranking = (r.data || []).map((c: any) => ({ name: c.name, class: c.class, score: c.score ?? 0 })).sort((a: any, b: any) => b.score - a.score)
+        setScoreRanking(ranking)
+      }).catch(() => {})
+    }
+  }, [])
 
   // reload history when season changes
   useEffect(() => {
@@ -339,6 +364,27 @@ export default function LootHistory() {
 
   // unique values for filter dropdowns
   const bosses = useMemo(() => [...new Set(drops.map(d => d.boss).filter(Boolean))].sort(), [drops])
+
+  // prefetch boss art for any boss with no manual/hardcoded image (searched by name across all raids)
+  useEffect(() => {
+    if (isDemoMode()) return
+    bosses.forEach(bossName => {
+      if (getBossImageUrl(bossName) || autoBossImages[bossName]) return
+      resolveBossImageAuto(undefined, bossName).then(url => {
+        if (url) setAutoBossImages(prev => ({ ...prev, [bossName]: url }))
+      })
+    })
+  }, [bosses.join('|')])
+
+  useEffect(() => {
+    if (isDemoMode() || lang !== 'pt') return
+    bosses.forEach(bossName => {
+      if (autoBossNames[bossName]) return
+      resolveBossNameAuto(undefined, bossName, 'pt_BR').then(localized => {
+        if (localized) setAutoBossNames(prev => ({ ...prev, [bossName]: localized }))
+      })
+    })
+  }, [bosses.join('|'), lang])
   const dates = useMemo(() => {
     const set = new Set<string>()
     drops.forEach(d => {
@@ -394,13 +440,55 @@ export default function LootHistory() {
 
   return (
     <div className="tab-content">
-      <div className="card tab-card" style={{ padding: '16px 20px' }}>
+      <div className="tab-card" style={{ padding: '16px 20px' }}>
         <h3 style={{ margin: '0 0 12px', fontSize: 17 }}>{t('history.title')}</h3>
         {error && <div style={{ color: '#ef4444', marginBottom: 8 }}>{error}</div>}
         {initialLoading && <Skeleton count={5} />}
 
         {!initialLoading && (
           <>
+            {/* Guild score ranking + formula explainer — transparency for all roles */}
+            {scoreRanking.length > 0 && (
+              <div className="lh-score-section">
+                <h4 className="lh-score-title">{t('history.scoreRankingTitle')}</h4>
+                <p className="lh-score-desc">{t('history.scoreRankingDesc')}</p>
+                <div className="lh-score-grid">
+                  {scoreRanking.map(c => {
+                    const icon = getClassIconUrl(c.class)
+                    return (
+                      <div key={c.name} className="lh-score-card">
+                        {icon ? <img src={icon} alt="" className="lh-score-icon" draggable={false} /> : <div className="lh-score-icon" />}
+                        <span className="lh-score-name" style={{ color: getClassColor(c.class, theme) }}>{c.name}</span>
+                        <span className="lh-score-value">{c.score.toFixed(1)}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+                <div className="lh-formula-box">
+                  <div className="lh-formula-toggle" onClick={() => setShowFormula(!showFormula)}>
+                    <span>{t('history.formulaTitle')}</span>
+                    <span style={{ transform: showFormula ? 'rotate(90deg)' : 'rotate(0)', transition: 'transform 0.2s' }}>▶</span>
+                  </div>
+                  {showFormula && (
+                    <div className="lh-formula-content">
+                      <div className="lh-formula-item">
+                        <strong style={{ color: '#fb923c' }}>{t('admin.formula.alphaTitle')}</strong><br />
+                        {t('admin.formula.alphaDesc')} <strong>{t('admin.formula.alphaHighlight')}</strong>
+                      </div>
+                      <div className="lh-formula-item">
+                        <strong style={{ color: 'var(--color-cyan)' }}>{t('admin.formula.betaTitle')}</strong><br />
+                        {t('admin.formula.betaDesc')} <strong>{t('admin.formula.betaHighlight')}</strong>{t('admin.formula.betaSuffix')}
+                      </div>
+                      <div className="lh-formula-item">
+                        <strong style={{ color: 'var(--color-transmog)' }}>{t('admin.formula.gammaTitle')}</strong><br />
+                        {t('admin.formula.gammaDesc')} <strong>{t('admin.formula.gammaHighlight')}</strong>{t('admin.formula.gammaSuffix')}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Filter bar */}
             <div className="lh-filter-bar">
               {/* Season selector */}
@@ -427,7 +515,7 @@ export default function LootHistory() {
                 className="lh-select"
               >
                 <option value="">{t('history.filterBoss')}</option>
-                {bosses.map(b => <option key={b} value={b}>{b}</option>)}
+                {bosses.map(b => <option key={b} value={b}>{getBossNameResolved(b)}</option>)}
               </select>
               <select
                 value={filterDate}
@@ -477,10 +565,10 @@ export default function LootHistory() {
                         return Array.from(byBoss.entries()).map(([bossName, bossItems]) => (
                           <div key={bossName} className="lh-boss-group">
                             <div className="lh-boss-header">
-                              {getBossImageUrl(bossName) ? (
-                                <img src={getBossImageUrl(bossName) as string} alt="" className="lh-boss-icon" draggable={false} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
+                              {getBossImageResolved(bossName) ? (
+                                <img src={getBossImageResolved(bossName) as string} alt="" className="lh-boss-icon" draggable={false} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
                               ) : null}
-                              {bossName}
+                              {getBossNameResolved(bossName)}
                             </div>
                             <div className="lh-boss-items">
                               {bossItems.map(d => {
@@ -491,7 +579,7 @@ export default function LootHistory() {
                           `${d.itemName}`,
                           `${t('loot.difficulty')}: ${d.difficulty}`,
                           d.assignedTo ? `${t('history.to')} ${d.assignedTo}` : t('history.transmog'),
-                          d.awardValue ? `${t('history.value')} +${Number(d.awardValue).toFixed(1)} pts` : null,
+                          d.isManualAssignment ? t('history.manualAssignment') : (d.awardValue ? `${t('history.value')} +${Number(d.awardValue).toFixed(1)} pts` : null),
                           d.note ? `${t('history.note')} ${d.note}` : null,
                           `${t('history.at')} ${formatDate(d.createdAt)}`,
                           reverted ? `↩ ${t('history.reverted')} ${d.revertedAt ? formatDate(d.revertedAt) : ''}` : null,
@@ -532,7 +620,11 @@ export default function LootHistory() {
                             ) : (
                               <div className="lh-assigned">
                                 <span className="lh-assigned-name">{d.assignedTo}</span>
-                                <span className="lh-assigned-score">+{Number(d.awardValue).toFixed(1)} pts</span>
+                                {d.isManualAssignment ? (
+                                  <span className="lh-assigned-manual">{t('history.manualAssignment')}</span>
+                                ) : (
+                                  <span className="lh-assigned-score">+{Number(d.awardValue).toFixed(1)} pts</span>
+                                )}
                               </div>
                             )}
 
@@ -586,26 +678,19 @@ export default function LootHistory() {
 
       {/* Redistribute panel */}
       {redistributeInfo && (
-        <div style={{
-          position: 'fixed', bottom: 24, right: 24, zIndex: 1000,
-          background: 'var(--card)', border: '1.5px solid var(--accent)',
-          borderRadius: 12, padding: '16px 20px', width: 320, maxWidth: 'calc(100vw - 48px)',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.45)',
-          animation: 'slideInRight 0.3s ease-out',
-          display: 'flex', flexDirection: 'column', gap: 10,
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ fontWeight: 700, fontSize: 13 }}>
+        <div className="lh-redistribute-panel">
+          <div className="lh-redistribute-header">
+            <div className="lh-redistribute-title">
               {t('history.redistributeTitle')}
             </div>
             <button
               onClick={() => { setRedistributeInfo(null); setRedistCandidates([]); setRedistSelected('') }}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 16, padding: '0 4px', lineHeight: 1 }}
+              className="lh-redistribute-close"
             >✕</button>
           </div>
 
-          <div style={{ fontSize: 12, fontWeight: 600 }}>{redistributeInfo.itemName}</div>
-          <div style={{ fontSize: 10, color: 'var(--muted)' }}>
+          <div className="lh-redistribute-item">{redistributeInfo.itemName}</div>
+          <div className="lh-redistribute-meta">
             {redistributeInfo.boss} · {redistributeInfo.difficulty}
             {redistributeInfo.assignedTo && ` · ${lang === 'pt' ? 'era de' : 'was'} ${redistributeInfo.assignedTo}`}
             {redistributeInfo.revertedScore > 0 && ` · -${redistributeInfo.revertedScore.toFixed(1)} pts`}
@@ -614,10 +699,10 @@ export default function LootHistory() {
           {/* Candidate list */}
           {redistLoading && <div style={{ textAlign: 'center', padding: 8 }}><Spinner size={24} /></div>}
           {!redistLoading && upgradeCandidates.length === 0 && redistCandidates.length > 0 && (
-            <div style={{ color: 'var(--color-transmog)', fontWeight: 700, fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', textAlign: 'center', padding: '4px 0' }}>TRANSMOG</div>
+            <div className="lh-redistribute-transmog">TRANSMOG</div>
           )}
           {!redistLoading && upgradeCandidates.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 180, overflowY: 'auto' }}>
+            <div className="lh-redistribute-candidates">
               {upgradeCandidates.map((c, k) => {
                 const isSelected = redistSelected === c.characterName
                 const classLabel = c.class ? ` (${c.class})` : ''
@@ -626,17 +711,10 @@ export default function LootHistory() {
                     key={k}
                     onClick={() => setRedistSelected(c.characterName)}
                     title={`Upgrade: ${Number(c.itemPercentage).toFixed(1)}% | Score: ${Number(c.overallScore).toFixed(1)} | Priority: ${Number(c.priority).toFixed(3)}`}
-                    style={{
-                      padding: '6px 10px', borderRadius: 6, fontSize: 11,
-                      border: isSelected ? '2px solid var(--color-yellow)' : '1px solid var(--border)',
-                      background: isSelected ? 'rgba(var(--accent-rgb),0.10)' : 'transparent',
-                      textAlign: 'left', cursor: 'pointer',
-                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                      color: 'var(--text)',
-                    }}
+                    className={"lh-redistribute-candidate" + (isSelected ? ' lh-redistribute-candidate--selected' : '')}
                   >
-                    <span style={{ fontWeight: 600 }}>{c.characterName}{classLabel}</span>
-                    <span style={{ fontSize: 9, color: 'var(--muted)', marginLeft: 6, flexShrink: 0 }}>
+                    <span className="lh-redistribute-candidate-name">{c.characterName}{classLabel}</span>
+                    <span className="lh-redistribute-candidate-meta">
                       ⬆{Number(c.itemPercentage).toFixed(1)}% · P:{Number(c.priority * 100).toFixed(0)}
                     </span>
                   </button>
@@ -646,24 +724,15 @@ export default function LootHistory() {
           )}
 
           {/* Actions */}
-          <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+          <div className="lh-redistribute-actions">
             <button
               onClick={doRedistribute}
               disabled={!redistSelected || redistLoading}
-              style={{
-                flex: 1, padding: '7px 12px', borderRadius: 6, fontSize: 12, fontWeight: 700,
-                border: '1px solid rgba(var(--accent-rgb),0.4)', background: 'rgba(var(--accent-rgb),0.12)',
-                cursor: redistSelected ? 'pointer' : 'default', color: 'var(--text)',
-                opacity: redistSelected ? 1 : 0.5,
-              }}
+              className="lh-redistribute-confirm"
             >{t('loot.distribute')}</button>
             <button
               onClick={() => { setRedistributeInfo(null); setRedistCandidates([]); setRedistSelected('') }}
-              style={{
-                padding: '7px 12px', borderRadius: 6, fontSize: 12,
-                border: '1px solid var(--border)', background: 'transparent',
-                cursor: 'pointer', color: 'var(--muted)',
-              }}
+              className="lh-redistribute-dismiss"
             >{t('history.dismiss')}</button>
           </div>
         </div>

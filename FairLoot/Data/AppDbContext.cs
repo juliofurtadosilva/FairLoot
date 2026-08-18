@@ -17,6 +17,7 @@ namespace FairLoot.Data
         public DbSet<LootDrop> LootDrops { get; set; }
         public DbSet<WishlistCache> WishlistCaches { get; set; }
         public DbSet<Season> Seasons { get; set; }
+        public DbSet<RaidImage> RaidImages { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -63,6 +64,11 @@ namespace FairLoot.Data
                 .OnDelete(DeleteBehavior.Cascade);
 
             modelBuilder.Entity<LootDrop>().ToTable("loot_drops");
+            // every LootDrop query filters by GuildId (and most also filter/sort by CreatedAt); LootDrop has
+            // no navigation to Guild so EF's automatic FK index convention never kicks in for this column —
+            // without this, every read scans loot_drops across ALL guilds.
+            modelBuilder.Entity<LootDrop>()
+                .HasIndex(d => new { d.GuildId, d.CreatedAt });
 
             modelBuilder.Entity<WishlistCache>().ToTable("wishlist_cache");
             modelBuilder.Entity<WishlistCache>()
@@ -72,6 +78,11 @@ namespace FairLoot.Data
             modelBuilder.Entity<Season>().ToTable("seasons");
             modelBuilder.Entity<Season>()
                 .HasIndex(s => s.GuildId);
+
+            modelBuilder.Entity<RaidImage>().ToTable("raid_images");
+            modelBuilder.Entity<RaidImage>()
+                .HasIndex(r => new { r.GuildId, r.EntityType, r.Name })
+                .IsUnique();
         }
     }
 }

@@ -11,5 +11,14 @@ namespace FairLoot.DTOs
         public int? MinIlevelNormal { get; set; }
         public int? MinIlevelHeroic { get; set; }
         public int? MinIlevelMythic { get; set; }
+        public int? ScoreDecayHalfLifeDays { get; set; }
+    }
+
+    public class RaidImageUpsertDto
+    {
+        public string EntityType { get; set; } = "boss";
+        public string Name { get; set; } = string.Empty;
+        // empty/null removes the mapping (falls back to the hardcoded default)
+        public string? ImageFile { get; set; }
     }
 }

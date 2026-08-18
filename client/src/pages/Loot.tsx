@@ -1,10 +1,10 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import api from '../services/api'
 import { useApp } from '../context/AppContext'
 import Spinner from '../components/Spinner'
 import Skeleton from '../components/Skeleton'
 import { isDemoMode, getDemoWishlistSummary, getDemoGuild, getDemoCharacters, getDemoLootHistory, addDemoLootHistory } from '../services/demoData'
-import { getBossImageUrl } from '../services/bossMap'
+import { getBossImageUrl, getRaidImageOverrideUrl, setImageOverrides, resolveRaidImageAuto, resolveBossImageAuto, resolveRaidNameAuto, resolveBossNameAuto } from '../services/bossMap'
 import { getCachedWishlist, setCachedWishlist, WISHLIST_REFRESH_INTERVAL } from '../services/wishlistCache'
 import { getClassNameLocalized, getClassIconUrl, getClassColor } from '../services/classIcons'
 import voidspireImg from '../assets/voidspire.jpg'
@@ -73,7 +73,7 @@ export default function Loot() {
     if (!allowDuplicateItems.has(index)) {
       Object.keys(updated).forEach(kidx => {
         const i = Number(kidx)
-        if (i !== index && normalizeName(updated[i]) === normalizeName(charName) && !suggestionMeta[i]?.singleUpgradeOnly && !allowDuplicateItems.has(i)) {
+        if (i !== index && normalizeName(updated[i]) === normalizeName(charName) && !suggestionMeta[i]?.singleUpgradeOnly && !allowDuplicateItems.has(i) && !manualAssignItems.has(i)) {
           updated[i] = ''
           clearedIndices.push(i)
         }
@@ -88,7 +88,7 @@ export default function Loot() {
       const usedNames = new Set<string>()
       Object.entries(updated).forEach(([k, v]) => {
         if (!v || Number(k) === ci) return
-        if (suggestionMeta[Number(k)]?.singleUpgradeOnly) return
+        if (suggestionMeta[Number(k)]?.singleUpgradeOnly || manualAssignItems.has(Number(k))) return
         usedNames.add(normalizeName(v))
       })
       const nextBest = upgradeCands.find(c => !usedNames.has(normalizeName(c.characterName)))
@@ -100,7 +100,7 @@ export default function Loot() {
     Object.entries(updated).forEach(([k, v]) => {
       const ki = Number(k)
       if (!v) return
-      if (suggestionMeta[ki]?.singleUpgradeOnly) return
+      if (suggestionMeta[ki]?.singleUpgradeOnly || manualAssignItems.has(ki)) return
       newReserved[normalizeName(v)] = true
     })
     setReservedMap(newReserved)
@@ -111,6 +111,29 @@ export default function Loot() {
   const [raidMapState, setRaidMapState] = useState<Record<string, Record<string, Record<string, Item[]>>>>({})
   const [bossList, setBossList] = useState<string[]>([])
   const [windowWidth, setWindowWidth] = useState<number>(typeof window !== 'undefined' ? window.innerWidth : 1200)
+
+  useEffect(() => {
+    const onResize = () => setWindowWidth(window.innerWidth)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+  // measured (not guessed) column count of the step-2 suggestions grid, so the trailing-row
+  // placeholder fillers always match what the browser actually rendered.
+  const suggestionsGridRef = useRef<HTMLDivElement>(null)
+  const [suggestionsGridCols, setSuggestionsGridCols] = useState(1)
+  useEffect(() => {
+    if (step !== 2) return
+    const el = suggestionsGridRef.current
+    if (!el) return
+    const measure = () => {
+      const cols = getComputedStyle(el).gridTemplateColumns.split(' ').filter(Boolean).length
+      setSuggestionsGridCols(cols || 1)
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [step, allocItems.length])
   const [isAdmin, setIsAdmin] = useState(false)
   const [loading, setLoading] = useState(false)
   const [initialLoading, setInitialLoading] = useState(true)
@@ -119,6 +142,27 @@ export default function Loot() {
   const [noteOpenIdx, setNoteOpenIdx] = useState<number | null>(null)
   const [itemNameMap, setItemNameMap] = useState<Record<number, string>>({})
   const [allowDuplicateItems, setAllowDuplicateItems] = useState<Set<number>>(new Set())
+  // manual assignment: admin picks a roster member outside the suggestion algorithm — no score impact,
+  // never reserves/blocks other item slots.
+  const [manualAssignItems, setManualAssignItems] = useState<Set<number>>(new Set())
+  // auto-resolved raid/boss images (Blizzard Journal API), fills the gap when no manual/hardcoded art exists
+  const [autoRaidImages, setAutoRaidImages] = useState<Record<string, string>>({})
+  const [autoBossImages, setAutoBossImages] = useState<Record<string, string>>({})
+  // auto-resolved raid/boss localized names (PT) — WowAudit only ever gives English names
+  const [autoRaidNames, setAutoRaidNames] = useState<Record<string, string>>({})
+  const [autoBossNames, setAutoBossNames] = useState<Record<string, string>>({})
+
+  const setManualAssignment = (idx: number, charName: string) => {
+    const updated = { ...assignments }
+    if (!charName) {
+      updated[idx] = ''
+      setManualAssignItems(prev => { const next = new Set(prev); next.delete(idx); return next })
+    } else {
+      updated[idx] = charName
+      setManualAssignItems(prev => new Set(prev).add(idx))
+    }
+    setAssignments(updated)
+  }
 
   // Priority color — interpolates from gold (top) to gray (bottom) based on position
   const getPriorityColor = (position: number, total: number) => {
@@ -231,7 +275,7 @@ export default function Loot() {
           const s = getDemoWishlistSummary()
           setSummary(s)
           setRaidMapState(buildRaidMapFromSummary(s))
-          // demo characters still used for other demo features but iLevel-specific data removed
+          setChars(getDemoCharacters())
           setGuild(getDemoGuild())
           setInitialLoading(false)
           // resolve icons asynchronously
@@ -255,10 +299,11 @@ export default function Loot() {
         }
 
         // fetch wishlists and characters in parallel (always, to get fresh data)
-        const [wishlistRes, charsRes, guildRes] = await Promise.all([
+        const [wishlistRes, charsRes, guildRes, raidImagesRes] = await Promise.all([
           api.get('/api/guild/wowaudit/wishlists').catch(() => null),
           api.get('/api/guild/characters').catch(() => null),
           api.get('/api/guild').catch(() => null),
+          api.get('/api/guild/raid-images').catch(() => null),
         ])
 
         if (wishlistRes) {
@@ -268,7 +313,9 @@ export default function Loot() {
           if (s.length > 0) setCachedWishlist(s)
         }
 
-        // character list fetch omitted — iLevel logic removed
+        if (charsRes) setChars(charsRes.data || [])
+
+        if (raidImagesRes) setImageOverrides(raidImagesRes.data || [])
 
         if (guildRes) {
           setGuild(guildRes.data)
@@ -308,7 +355,7 @@ export default function Loot() {
     "march on quel'danas": marchImg,
   }
 
-  const getRaidImage = (name: string) => raidImages[name.trim().toLowerCase()] || ''
+  const getRaidImage = (name: string) => getRaidImageOverrideUrl(name) || raidImages[name.trim().toLowerCase()] || ''
 
   const getItemKey = (item: { itemId?: number | null; itemName?: string } | Item) => {
     const anyItem = item as Item & { itemId?: number | null; itemName?: string }
@@ -357,6 +404,55 @@ export default function Loot() {
   // raidMap may have shape: instance -> difficulty -> boss -> items
   const raidMap = Object.keys(raidMapState).length > 0 ? raidMapState : buildRaidMap()
   const raidList = Object.keys(raidMap)
+
+  const getRaidImageResolved = (name: string) => getRaidImage(name) || autoRaidImages[name] || ''
+  const getBossImageResolved = (bossName: string) => getBossImageUrl(bossName) || (raid ? autoBossImages[`${raid}||${bossName}`] : undefined) || null
+  const getRaidNameResolved = (name: string) => (lang === 'pt' && autoRaidNames[name]) || name
+  const getBossNameResolved = (bossName: string) => (lang === 'pt' && raid && autoBossNames[`${raid}||${bossName}`]) || bossName
+
+  // prefetch raid banner art automatically for any raid not already covered by a manual/hardcoded override
+  useEffect(() => {
+    if (isDemoMode()) return
+    raidList.forEach(name => {
+      if (getRaidImage(name) || autoRaidImages[name]) return
+      resolveRaidImageAuto(name).then(url => {
+        if (url) setAutoRaidImages(prev => ({ ...prev, [name]: url }))
+      })
+    })
+  }, [raidList.join('|')])
+
+  // prefetch boss portrait art automatically for the currently visible boss list
+  useEffect(() => {
+    if (isDemoMode() || !raid) return
+    bossList.forEach(b => {
+      if (getBossImageUrl(b) || autoBossImages[`${raid}||${b}`]) return
+      resolveBossImageAuto(raid, b).then(url => {
+        if (url) setAutoBossImages(prev => ({ ...prev, [`${raid}||${b}`]: url }))
+      })
+    })
+  }, [raid, bossList.join('|')])
+
+  // prefetch localized (PT) raid/boss names — WowAudit only ever returns English names
+  useEffect(() => {
+    if (isDemoMode() || lang !== 'pt') return
+    raidList.forEach(name => {
+      if (autoRaidNames[name]) return
+      resolveRaidNameAuto(name, 'pt_BR').then(localized => {
+        if (localized) setAutoRaidNames(prev => ({ ...prev, [name]: localized }))
+      })
+    })
+  }, [raidList.join('|'), lang])
+
+  useEffect(() => {
+    if (isDemoMode() || lang !== 'pt' || !raid) return
+    bossList.forEach(b => {
+      const key = `${raid}||${b}`
+      if (autoBossNames[key]) return
+      resolveBossNameAuto(raid, b, 'pt_BR').then(localized => {
+        if (localized) setAutoBossNames(prev => ({ ...prev, [key]: localized }))
+      })
+    })
+  }, [raid, bossList.join('|'), lang])
 
   useEffect(() => {
     if (raid && boss) {
@@ -665,8 +761,8 @@ export default function Loot() {
       if (!v) return
       // skip assignments that are inside this group
       if (groupIndices.includes(ki)) return
-      // skip single-upgrade-only assignments (they are free and shouldn't block others)
-      if (suggestionMeta[ki]?.singleUpgradeOnly) return
+      // skip single-upgrade-only and manual assignments (they are free and shouldn't block others)
+      if (suggestionMeta[ki]?.singleUpgradeOnly || manualAssignItems.has(ki)) return
       assignedElsewhereFromOthers.add(normalizeName(v))
     })
     // include reserved names that are not already assigned within this group
@@ -675,7 +771,7 @@ export default function Loot() {
       const ki = Number(k)
       if (!v) return
       if (groupIndices.includes(ki)) groupAssignedNames.add(normalizeName(v))
-      else if (!suggestionMeta[ki]?.singleUpgradeOnly) assignedElsewhereFromOthers.add(normalizeName(v))
+      else if (!suggestionMeta[ki]?.singleUpgradeOnly && !manualAssignItems.has(ki)) assignedElsewhereFromOthers.add(normalizeName(v))
     })
     Object.keys(reservedMap || {}).forEach(n => {
       if (!groupAssignedNames.has(n)) assignedElsewhereFromOthers.add(n)
@@ -705,6 +801,8 @@ export default function Loot() {
     let changed = false
     const updated = { ...assignments }
     allocItems.forEach((_, idx) => {
+      // manual assignments are never auto-cleared — they don't go through the suggestion algorithm
+      if (manualAssignItems.has(idx)) return
       if (getTransmogStatus(idx).isTransmog && updated[idx]) {
         // clear assignment if candidate is now considered transmog due to selection elsewhere
         updated[idx] = ''
@@ -717,24 +815,28 @@ export default function Loot() {
     Object.entries(updated).forEach(([k, v]) => {
       const ki = Number(k)
       if (!v) return
-      // do not reserve single-upgrade-only assignments (they are free)
-      if (suggestionMeta[ki]?.singleUpgradeOnly) return
+      // do not reserve single-upgrade-only or manual assignments (they are free)
+      if (suggestionMeta[ki]?.singleUpgradeOnly || manualAssignItems.has(ki)) return
       newReserved[normalizeName(v)] = true
     })
     setReservedMap(newReserved)
-  }, [allocItems, suggestionMeta, suggestions, assignments])
+  }, [allocItems, suggestionMeta, suggestions, assignments, manualAssignItems])
 
   const doDistribute = async () => {
     // use allocItems which represents each unit separately
-    const allocations = allocItems.map((it, idx) => ({
-      itemId: it.itemId,
-      itemName: it.itemName,
-      assignedTo: getTransmogStatus(idx).isTransmog ? '' : (assignments[idx] || ''),
-      boss,
-      difficulty,
-      note: itemNotes[idx] || undefined,
-      isSingleUpgrade: !!suggestionMeta[idx]?.singleUpgradeOnly,
-    }))
+    const allocations = allocItems.map((it, idx) => {
+      const isManual = manualAssignItems.has(idx)
+      return {
+        itemId: it.itemId,
+        itemName: it.itemName,
+        assignedTo: isManual ? (assignments[idx] || '') : (getTransmogStatus(idx).isTransmog ? '' : (assignments[idx] || '')),
+        boss,
+        difficulty,
+        note: itemNotes[idx] || undefined,
+        isSingleUpgrade: !!suggestionMeta[idx]?.singleUpgradeOnly,
+        isManualAssignment: isManual,
+      }
+    })
     try {
       if (isDemoMode()) {
         const drops = allocations.map((a, i) => ({
@@ -743,9 +845,10 @@ export default function Loot() {
           assignedTo: a.assignedTo,
           boss: a.boss,
           difficulty: a.difficulty,
-          // award depends on difficulty (normal=0.5, heroic=1.0, mythic=1.5)
-          awardValue: (!a.assignedTo || a.isSingleUpgrade) ? 0 : (a.difficulty === 'normal' ? 0.5 : a.difficulty === 'mythic' ? 1.5 : 1.0),
+          // award depends on difficulty (normal=0.5, heroic=1.0, mythic=1.5); manual assignments never score
+          awardValue: (!a.assignedTo || a.isSingleUpgrade || a.isManualAssignment) ? 0 : (a.difficulty === 'normal' ? 0.5 : a.difficulty === 'mythic' ? 1.5 : 1.0),
           note: a.note || '',
+          isManualAssignment: a.isManualAssignment,
           createdAt: new Date().toISOString(),
         }))
         addDemoLootHistory(drops)
@@ -761,6 +864,7 @@ export default function Loot() {
       setAssignments({})
       setItemNotes({})
       setNoteOpenIdx(null)
+      setManualAssignItems(new Set())
       setStep(1)
     } catch (e) {
       console.error(e)
@@ -768,30 +872,34 @@ export default function Loot() {
     }
   }
 
+  // going back to step 1 must discard whatever candidate picks/manual overrides were made in step 2 —
+  // otherwise re-entering step 2 (even with the same items) kept stale assignments/manual flags around.
+  const backToStep1 = () => {
+    setAssignments({})
+    setManualAssignItems(new Set())
+    setAllowDuplicateItems(new Set())
+    setReservedMap({})
+    setItemNotes({})
+    setNoteOpenIdx(null)
+    setStep(1)
+  }
+
   return (
     <div className="tab-content">
-      <div className="card tab-card loot-panel loot-panel--container">
+      <div className="tab-card loot-panel loot-panel--container">
         {initialLoading && <Skeleton count={4} />}
-        {!initialLoading && (
-          <div className="loot-stepper">
-            <div className={`loot-step ${step === 1 ? 'loot-step--active' : 'loot-step--done'}`}>
-              <div className="loot-step-num">{step > 1 ? '✓' : '1'}</div>
-              <span className="loot-step-label">{t('loot.step1Desc')}</span>
-            </div>
-            <div className={`loot-step-line ${step > 1 ? 'loot-step-line--done' : ''}`} />
-            <div className={`loot-step ${step === 2 ? 'loot-step--active' : ''}`}>
-              <div className="loot-step-num">2</div>
-              <span className="loot-step-label">{t('loot.step2Desc')}</span>
-            </div>
-          </div>
+        {!initialLoading && step === 2 && (
+          <button className="loot-back-link" onClick={backToStep1}>← {t('loot.back')}</button>
         )}
         {!initialLoading && step === 1 && (
           <div className="loot-root">
+            <div className="loot-section">
+            <div className="loot-section-label">{t('loot.raid')}</div>
             <div className="loot-top-row">
               <div className="loot-raid-column">
-                {/* Difficulty buttons — vertical */}
-                <div className="difficulty-column">
-                  <label style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 2 }}>{t('loot.difficulty')}</label>
+                {/* Difficulty selector sits beside the raid cards it gates — vertical pill, same visual language as the theme picker */}
+                <div className="difficulty-group difficulty-group--vertical">
+                  <div className="difficulty-pills difficulty-pills--vertical">
                   {['normal', 'heroic', 'mythic'].map(d => (
                     <button
                       key={d}
@@ -808,12 +916,12 @@ export default function Loot() {
                       }}
                       className={"difficulty-btn" + (difficulty === d ? ' active' : '')}>{d === 'normal' ? 'N' : d === 'heroic' ? 'H' : 'M'}</button>
                   ))}
+                  </div>
                 </div>
-
                 <div className="raid-list">
                   {raidList.length === 0 && <div style={{ color: 'var(--muted)' }}>{t('loot.selectDiffToLoad')}</div>}
                   {raidList.map(instName => {
-                    const img = getRaidImage(instName)
+                    const img = getRaidImageResolved(instName)
                     const disabled = !difficulty
                     return (
                       <div key={instName} className={`raid-item ${raid === instName ? 'selected' : ''} ${disabled ? 'disabled' : ''}`}
@@ -844,12 +952,12 @@ export default function Loot() {
                             fontSize: 13,
                             fontWeight: 700,
                             color: '#fff',
-                            borderRadius: '0 0 10px 10px',
+                            borderRadius: '0 0 4px 4px',
                             boxSizing: 'border-box',
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
                             whiteSpace: 'nowrap'
-                          }}>{instName}</div>
+                          }}>{getRaidNameResolved(instName)}</div>
                         </div>
                       </div>
                     )
@@ -866,7 +974,7 @@ export default function Loot() {
                       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
                         {bossList.length > 0 ? (
                           bossList.map(b => {
-                            const img = getBossImageUrl(b)
+                            const img = getBossImageResolved(b)
                             return (
                               <button
                                 key={b}
@@ -885,7 +993,7 @@ export default function Loot() {
                                 {img ? (
                                   <img src={img} alt={b} className="loot-boss-large" draggable={false} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
                                 ) : null}
-                                <span style={{ fontSize: 12, textAlign: 'center', display: 'block', width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b}</span>
+                                <span style={{ fontSize: 12, textAlign: 'center', display: 'block', width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getBossNameResolved(b)}</span>
                               </button>
                             )
                           })
@@ -898,14 +1006,39 @@ export default function Loot() {
                 </div>
               )}
             </div>
+            </div>
             {/* show bottom bosses only on wider screens */}
-            {windowWidth >= 900 && raid && (
+            {windowWidth >= 900 && raid && (() => {
+              // fit every boss on one row by shrinking the buttons, down to a legible floor;
+              // only fall back to a balanced multi-row grid (no lone straggler row) if even the
+              // smallest acceptable size can't fit them all on one line.
+              const sidebarW = windowWidth < 1024 ? 72 : 232
+              const stdW = 140, stdH = 88, stdImgH = 40, stdFont = 12, minW = 84, gap = 8
+              const available = windowWidth - sidebarW - 100
+              const n = bossList.length
+              const idealFullRowW = n > 0 ? Math.floor((available - (n - 1) * gap) / n) : stdW
+              let buttonW: number, bossColumns: number
+              if (n > 0 && idealFullRowW >= minW) {
+                buttonW = Math.min(stdW, idealFullRowW)
+                bossColumns = n
+              } else {
+                buttonW = stdW
+                const maxCols = Math.max(1, Math.floor((available + gap) / (buttonW + gap)))
+                const rows = Math.max(1, Math.ceil(n / maxCols))
+                bossColumns = Math.min(n, Math.ceil(n / rows)) || 1
+              }
+              const scale = buttonW / stdW
+              const buttonH = Math.round(stdH * scale)
+              const imgH = Math.round(stdImgH * scale)
+              const fontSize = Math.max(10, Math.round(stdFont * scale))
+              return (
+              <div className="loot-section">
+              <div className="loot-section-label">{t('loot.bossLabel')}</div>
               <div className="boss-bottom" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                {/*<div style={{ marginBottom: 8, fontSize: 15 }}><strong>{t('loot.raid')}:</strong> {raid}</div>*/}
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: `repeat(${bossColumns}, ${buttonW}px)`, gap: 8, justifyContent: 'center' }}>
                   {bossList.length > 0 ? (
                     bossList.map(b => {
-                      const img = getBossImageUrl(b)
+                      const img = getBossImageResolved(b)
                       return (
                         <button
                           key={b}
@@ -919,12 +1052,12 @@ export default function Loot() {
                             setStep(1)
                           }}
                   className="boss-select-btn"
-                  style={{ padding: '6px 8px', borderRadius: 6, border: boss === b ? '2px solid #10b981' : '1px solid var(--border)', background: boss === b ? 'rgba(16,185,129,0.06)' : 'transparent', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, boxSizing: 'border-box' }}
+                  style={{ width: buttonW, minWidth: buttonW, maxWidth: buttonW, height: buttonH, flexBasis: buttonW, padding: '6px 8px', borderRadius: 6, border: boss === b ? '2px solid #10b981' : '1px solid var(--border)', background: boss === b ? 'rgba(16,185,129,0.06)' : 'transparent', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, boxSizing: 'border-box' }}
                         >
                           {img ? (
-                            <img src={img} alt={b} className="loot-boss-large" draggable={false} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
+                            <img src={img} alt={b} className="loot-boss-large" draggable={false} style={{ height: imgH }} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
                           ) : null}
-                          <span style={{ fontSize: 12, textAlign: 'center', display: 'block', width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b}</span>
+                          <span style={{ fontSize, textAlign: 'center', display: 'block', width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getBossNameResolved(b)}</span>
                         </button>
                       )
                     })
@@ -933,10 +1066,12 @@ export default function Loot() {
                   )}
                 </div>
               </div>
-            )}
+              </div>
+              )
+            })()}
 
-            <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-              <strong style={{ fontSize: 15 }}>{t('loot.available')}</strong>
+            <div className="loot-section loot-section--fill">
+              <div className="loot-section-label">{t('loot.available')}</div>
               <div>
                 {availableItems.length === 0 && <div style={{ color: 'var(--muted)' }}>{!raid || !boss ? t('loot.selectRaidBoss') : t('loot.noItems')}</div>}
                 {/* raw wishlist debug removed */}
@@ -947,7 +1082,7 @@ export default function Loot() {
                       <div key={i} className={"item-card" + (sel ? ' selected' : '')} onClick={() => onItemClick(it)} onContextMenu={(e) => onItemRightClick(e, it)} onMouseDown={e => e.preventDefault()}>
                         {it.icon ? <img src={it.icon} alt="" className="item-icon" draggable={false} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} /> : <div className="item-icon placeholder" />}
                         <div className="item-body">
-                          <div className="item-name">{(it.id && itemNameMap[it.id]) ? itemNameMap[it.id] : it.name}</div>
+                          <div className="item-name">{(lang === 'pt' && it.id && itemNameMap[it.id]) ? itemNameMap[it.id] : it.name}</div>
                         </div>
                         {sel && <div className="item-count">{sel.count}</div>}
                       </div>
@@ -964,12 +1099,12 @@ export default function Loot() {
         )}
 
         {!initialLoading && step === 2 && (
-          <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div className="loot-step2" style={{ width: '100%', gap: 12 }}>
             {loading && suggestions && Object.keys(suggestions).length === 0 && (
               <div className="spinner-row"><Spinner size={36} /></div>
             )}
             <div className="suggestions-scroll">
-            <div className="suggestions-grid">
+            <div className="suggestions-grid" ref={suggestionsGridRef}>
               {allocItems.map((it, idx) => {
                 const allCandidates = suggestions[idx] || []
                 const baseUpgradeCandidates = allCandidates.filter(c => c.itemPercentage > 0)
@@ -985,8 +1120,8 @@ export default function Loot() {
                   if (groupIndicesLocal.includes(ki)) {
                     groupAssignedNamesLocal.add(normalizeName(v))
                   } else {
-                    // skip single-upgrade-only assignments (they're free and shouldn't block others)
-                    if (suggestionMeta[ki]?.singleUpgradeOnly) return
+                    // skip single-upgrade-only and manual assignments (they're free and shouldn't block others)
+                    if (suggestionMeta[ki]?.singleUpgradeOnly || manualAssignItems.has(ki)) return
                     assignedElsewhereFromOthers.add(normalizeName(v))
                   }
                 })
@@ -1004,11 +1139,12 @@ export default function Loot() {
                 const topCandidates = sortedUpgrades.slice(0, 5)
                 const { isTransmog } = getTransmogStatus(idx)
                 const isAllowDup = allowDuplicateItems.has(idx)
+                const isManual = manualAssignItems.has(idx)
                 return (
                   <div key={idx} className="card suggestion-card">
                     <div className="suggestion-header">
                       {it.icon ? <img src={it.icon} alt="" className="suggestion-icon" draggable={false} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} /> : <div className="suggestion-icon placeholder" />}
-                      <div className="suggestion-title">{(it.itemId && itemNameMap[it.itemId]) ? itemNameMap[it.itemId] : it.itemName}</div>
+                      <div className="suggestion-title">{(lang === 'pt' && it.itemId && itemNameMap[it.itemId]) ? itemNameMap[it.itemId] : it.itemName}</div>
                       <button
                         className={"allow-dup-toggle" + (isAllowDup ? ' active' : '')}
                         title={isAllowDup ? t('loot.dupOn') : t('loot.dupOff')}
@@ -1054,10 +1190,16 @@ export default function Loot() {
                         }}
                       />
                     </div>
-                    {isTransmog && (
+                    {isManual && (
+                      <div style={{ textAlign: 'center', padding: '4px 0' }}>
+                        <span className="badge badge-manual" style={{ color: 'var(--color-noscore)', border: '1px solid var(--color-noscore)', fontWeight: 700, fontSize: 10, letterSpacing: 1 }}>{t('loot.manualAssignBadge')}</span>
+                        {assignments[idx] && <div style={{ marginTop: 4, fontSize: 13, fontWeight: 600 }}>{assignments[idx]}</div>}
+                      </div>
+                    )}
+                    {!isManual && isTransmog && (
                       <div style={{ color: 'var(--color-transmog)', fontWeight: 700, fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', textAlign: 'center', padding: '4px 0' }}>TRANSMOG</div>
                     )}
-                    {!isTransmog && (
+                    {!isManual && !isTransmog && (
                       <div className="suggestion-body">
                         <div className="candidates-list">
                           {topCandidates.map((c: any, cIdx: number) => {
@@ -1103,6 +1245,19 @@ export default function Loot() {
                         )}
                       </div>
                     )}
+                    {/* Manual assignment — bypasses suggestions, never scores, never blocks other items */}
+                    <select
+                      className="candidate-select"
+                      value={isManual ? (assignments[idx] || '') : ''}
+                      onChange={e => setManualAssignment(idx, e.target.value)}
+                      title={t('loot.manualAssign')}
+                      style={{ marginTop: 6 }}
+                    >
+                      <option value="">{t('loot.manualAssign')}</option>
+                      {chars.slice().sort((a: any, b: any) => (a.name || '').localeCompare(b.name || '')).map((c: any) => (
+                        <option key={c.id ?? c.name} value={c.name}>{c.name}</option>
+                      ))}
+                    </select>
                     {/* Per-item note icon */}
                     <div style={{ display: 'flex', justifyContent: 'flex-end', position: 'relative' }}>
                       <button
@@ -1135,12 +1290,24 @@ export default function Loot() {
                   </div>
                 )
               })}
+              {(() => {
+                // fill the ragged end of the last row with dark placeholder cards so it doesn't
+                // look cut off — only when there's more than one row (a single row is fine centered as-is).
+                // uses the grid's actual measured column count (suggestionsGridCols), not a guess,
+                // so it always matches what the browser really rendered.
+                const cols = suggestionsGridCols
+                const remainder = allocItems.length % cols
+                const fillerCount = (allocItems.length > cols && remainder > 0) ? cols - remainder : 0
+                return Array.from({ length: fillerCount }).map((_, i) => (
+                  <div key={`filler-${i}`} className="suggestion-card suggestion-card--placeholder" aria-hidden="true" />
+                ))
+              })()}
             </div>
             </div>
 
-            <div style={{ padding: '12px 0 4px', display: 'flex', justifyContent: 'center', gap: 12 }}>
-              <button onClick={() => setStep(1)}>{t('loot.back')}</button>
-              <button onClick={doDistribute} style={{ padding: '10px 32px', fontSize: 15, borderRadius: 8, border: '1px solid rgba(var(--accent-rgb),0.4)', background: 'rgba(var(--accent-rgb),0.12)' }}>{t('loot.distribute')}</button>
+            <div className="actions-row">
+              <button onClick={backToStep1}>{t('loot.back')}</button>
+              <button className="primary" onClick={doDistribute}>{t('loot.distribute')}</button>
             </div>
           </div>
         )}
