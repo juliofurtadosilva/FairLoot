@@ -952,7 +952,7 @@ export default function Loot() {
                             fontSize: 13,
                             fontWeight: 700,
                             color: '#fff',
-                            borderRadius: '0 0 4px 4px',
+                            // borderRadius: '0 0 4px 4px',
                             boxSizing: 'border-box',
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',

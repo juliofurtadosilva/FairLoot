@@ -9,6 +9,12 @@ using System.Text;
 using Microsoft.AspNetCore.Identity;
 using FairLoot.Domain;
 
+// Disable appsettings.json file-watching before the host reads config: it uses inotify, and
+// restricted containers (e.g. Render's) can hit "user limit on inotify instances" and crash on
+// startup before a single line of our own code runs. Hot-reloading config in production is not
+// needed anyway — a new deploy always restarts the process.
+Environment.SetEnvironmentVariable("DOTNET_hostBuilder:reloadConfigOnChange", "false");
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services

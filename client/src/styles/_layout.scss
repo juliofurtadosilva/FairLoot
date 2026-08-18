@@ -167,11 +167,11 @@ body {
 
 .sidebar-logo-img {
   width: 100%;
-  max-width: 210px;
+  max-width: 175px;
   height: auto;
   object-fit: contain;
   pointer-events: none;
-  filter: drop-shadow(0 2px 6px rgba(0,0,0,0.55)) drop-shadow(0 0 18px rgba(var(--accent-rgb),0.25));
+  filter: drop-shadow(0 2px 1px rgba(0,0,0,0.55)) drop-shadow(0 0 18px rgba(var(--accent-rgb),0.25));
 }
 
 [data-theme="light"] .sidebar-logo-img {
