@@ -122,9 +122,15 @@ const translations = {
   'loot.notePlaceholder': { pt: 'Ex: trade com fulano, item off-spec...', en: 'E.g.: trade with someone, off-spec item...' },
   'loot.dupOn': { pt: 'Permitindo repetir jogador (clique para desativar)', en: 'Allowing duplicate player (click to disable)' },
   'loot.dupOff': { pt: 'Clique para permitir repetir jogador neste item', en: 'Click to allow duplicate player for this item' },
-  'loot.manualAssign': { pt: 'Atribuir manualmente (sem pontuar)', en: 'Manually assign (no score)' },
+  'loot.manualAssign': { pt: 'Atribuir manualmente', en: 'Manually assign' },
   'loot.manualAssignNone': { pt: '-- ninguém --', en: '-- nobody --' },
   'loot.manualAssignBadge': { pt: 'MANUAL · SEM PONTOS', en: 'MANUAL · NO SCORE' },
+  'loot.manualAssignBadgeScore': { pt: 'MANUAL · COM PONTOS', en: 'MANUAL · SCORED' },
+  'loot.manualAssignBadgeTransmog': { pt: 'MANUAL · TRANSMOG', en: 'MANUAL · TRANSMOG' },
+  'loot.manualModeLabel': { pt: 'Modo de pontuação', en: 'Scoring mode' },
+  'loot.manualModeScore': { pt: 'Contar Score', en: 'Count Score' },
+  'loot.manualModeNoScore': { pt: 'Não Contar', en: "Don't Count" },
+  'loot.manualModeTransmog': { pt: 'Transmog', en: 'Transmog' },
 
   // history
   'history.title': { pt: 'Histórico de Loot', en: 'Loot History' },

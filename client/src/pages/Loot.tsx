@@ -142,9 +142,13 @@ export default function Loot() {
   const [noteOpenIdx, setNoteOpenIdx] = useState<number | null>(null)
   const [itemNameMap, setItemNameMap] = useState<Record<number, string>>({})
   const [allowDuplicateItems, setAllowDuplicateItems] = useState<Set<number>>(new Set())
-  // manual assignment: admin picks a roster member outside the suggestion algorithm — no score impact,
-  // never reserves/blocks other item slots.
+  // manual assignment: admin picks a roster member outside the suggestion algorithm (used when that
+  // person doesn't show up in the suggestion candidates, e.g. item isn't on their wishlist). Never
+  // reserves/blocks other item slots. Scoring is controlled per-item by manualScoreMode below.
   const [manualAssignItems, setManualAssignItems] = useState<Set<number>>(new Set())
+  // scoring mode for manually-assigned items: 'score' counts it like a normal pick, 'noscore' keeps the
+  // legacy manual behavior (no score impact), 'transmog' clears the assignee and records it as transmog.
+  const [manualScoreMode, setManualScoreMode] = useState<Record<number, 'score' | 'noscore' | 'transmog'>>({})
   // auto-resolved raid/boss images (Blizzard Journal API), fills the gap when no manual/hardcoded art exists
   const [autoRaidImages, setAutoRaidImages] = useState<Record<string, string>>({})
   const [autoBossImages, setAutoBossImages] = useState<Record<string, string>>({})
@@ -157,11 +161,18 @@ export default function Loot() {
     if (!charName) {
       updated[idx] = ''
       setManualAssignItems(prev => { const next = new Set(prev); next.delete(idx); return next })
+      setManualScoreMode(prev => { const next = { ...prev }; delete next[idx]; return next })
     } else {
       updated[idx] = charName
       setManualAssignItems(prev => new Set(prev).add(idx))
+      // default to the legacy no-score behavior; admin can flip it with the score-mode toggle below
+      setManualScoreMode(prev => prev[idx] ? prev : { ...prev, [idx]: 'noscore' })
     }
     setAssignments(updated)
+  }
+
+  const setManualScoreModeFor = (idx: number, mode: 'score' | 'noscore' | 'transmog') => {
+    setManualScoreMode(prev => ({ ...prev, [idx]: mode }))
   }
 
   // Priority color — interpolates from gold (top) to gray (bottom) based on position
@@ -826,15 +837,22 @@ export default function Loot() {
     // use allocItems which represents each unit separately
     const allocations = allocItems.map((it, idx) => {
       const isManual = manualAssignItems.has(idx)
+      const mode = manualScoreMode[idx] || 'noscore'
+      // manual + transmog mode: drop the assignee, record as a plain transmog (empty assignedTo),
+      // same as the algorithm's own transmog detection.
+      const assignedTo = isManual
+        ? (mode === 'transmog' ? '' : (assignments[idx] || ''))
+        : (getTransmogStatus(idx).isTransmog ? '' : (assignments[idx] || ''))
       return {
         itemId: it.itemId,
         itemName: it.itemName,
-        assignedTo: isManual ? (assignments[idx] || '') : (getTransmogStatus(idx).isTransmog ? '' : (assignments[idx] || '')),
+        assignedTo,
         boss,
         difficulty,
         note: itemNotes[idx] || undefined,
         isSingleUpgrade: !!suggestionMeta[idx]?.singleUpgradeOnly,
-        isManualAssignment: isManual,
+        // 'score' mode counts like a normal pick (no manual flag → backend awards it); 'noscore'/'transmog' never score.
+        isManualAssignment: isManual && mode !== 'score',
       }
     })
     try {
@@ -865,6 +883,7 @@ export default function Loot() {
       setItemNotes({})
       setNoteOpenIdx(null)
       setManualAssignItems(new Set())
+      setManualScoreMode({})
       setStep(1)
     } catch (e) {
       console.error(e)
@@ -877,6 +896,7 @@ export default function Loot() {
   const backToStep1 = () => {
     setAssignments({})
     setManualAssignItems(new Set())
+    setManualScoreMode({})
     setAllowDuplicateItems(new Set())
     setReservedMap({})
     setItemNotes({})
@@ -1140,6 +1160,7 @@ export default function Loot() {
                 const { isTransmog } = getTransmogStatus(idx)
                 const isAllowDup = allowDuplicateItems.has(idx)
                 const isManual = manualAssignItems.has(idx)
+                const manualMode = manualScoreMode[idx] || 'noscore'
                 return (
                   <div key={idx} className="card suggestion-card">
                     <div className="suggestion-header">
@@ -1192,8 +1213,14 @@ export default function Loot() {
                     </div>
                     {isManual && (
                       <div style={{ textAlign: 'center', padding: '4px 0' }}>
-                        <span className="badge badge-manual" style={{ color: 'var(--color-noscore)', border: '1px solid var(--color-noscore)', fontWeight: 700, fontSize: 10, letterSpacing: 1 }}>{t('loot.manualAssignBadge')}</span>
-                        {assignments[idx] && <div style={{ marginTop: 4, fontSize: 13, fontWeight: 600 }}>{assignments[idx]}</div>}
+                        {manualMode === 'transmog' ? (
+                          <span className="badge badge-manual" style={{ color: 'var(--color-transmog)', border: '1px solid var(--color-transmog)', fontWeight: 700, fontSize: 10, letterSpacing: 1 }}>{t('loot.manualAssignBadgeTransmog')}</span>
+                        ) : manualMode === 'score' ? (
+                          <span className="badge badge-manual" style={{ color: '#10b981', border: '1px solid #10b981', fontWeight: 700, fontSize: 10, letterSpacing: 1 }}>{t('loot.manualAssignBadgeScore')}</span>
+                        ) : (
+                          <span className="badge badge-manual" style={{ color: 'var(--color-noscore)', border: '1px solid var(--color-noscore)', fontWeight: 700, fontSize: 10, letterSpacing: 1 }}>{t('loot.manualAssignBadge')}</span>
+                        )}
+                        {assignments[idx] && manualMode !== 'transmog' && <div style={{ marginTop: 4, fontSize: 13, fontWeight: 600 }}>{assignments[idx]}</div>}
                       </div>
                     )}
                     {!isManual && isTransmog && (
@@ -1258,6 +1285,29 @@ export default function Loot() {
                         <option key={c.id ?? c.name} value={c.name}>{c.name}</option>
                       ))}
                     </select>
+                    {/* When the person isn't in the suggestion list, this lets the admin still decide whether the pick should score */}
+                    {isManual && assignments[idx] && (
+                      <div className="manual-score-toggle" role="group" aria-label={t('loot.manualModeLabel')}>
+                        <button
+                          type="button"
+                          className={"manual-mode-btn" + (manualMode === 'score' ? ' active-score' : '')}
+                          onClick={() => setManualScoreModeFor(idx, 'score')}
+                          title={t('loot.manualModeScore')}
+                        >{t('loot.manualModeScore')}</button>
+                        <button
+                          type="button"
+                          className={"manual-mode-btn" + (manualMode === 'noscore' ? ' active-noscore' : '')}
+                          onClick={() => setManualScoreModeFor(idx, 'noscore')}
+                          title={t('loot.manualModeNoScore')}
+                        >{t('loot.manualModeNoScore')}</button>
+                        <button
+                          type="button"
+                          className={"manual-mode-btn" + (manualMode === 'transmog' ? ' active-transmog' : '')}
+                          onClick={() => setManualScoreModeFor(idx, 'transmog')}
+                          title={t('loot.manualModeTransmog')}
+                        >{t('loot.manualModeTransmog')}</button>
+                      </div>
+                    )}
                     {/* Per-item note icon */}
                     <div style={{ display: 'flex', justifyContent: 'flex-end', position: 'relative' }}>
                       <button
