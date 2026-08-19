@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using System.Security.Claims;
 using System.IdentityModel.Tokens.Jwt;
-using System.Collections.Concurrent;
+using System.Text.Json;
 
 namespace FairLoot.Controllers
 {
@@ -21,27 +21,6 @@ namespace FairLoot.Controllers
         private readonly IPasswordHasher<User> _passwordHasher;
         private readonly WowAuditService _wow;
         private readonly BlizzardService _blizzard;
-
-        // In-memory session store for Battle.net registration flow
-        private static readonly ConcurrentDictionary<string, BnetSession> _bnetSessions = new();
-        // In-memory session store for Battle.net login flow (multi-account selection)
-        private static readonly ConcurrentDictionary<string, BnetLoginSession> _bnetLoginSessions = new();
-
-        private class BnetSession
-        {
-            public DateTime Expiry { get; set; }
-            public List<BnetCharacterInfo> Characters { get; set; } = new();
-            public string Region { get; set; } = "us";
-            public string? BattleNetId { get; set; }
-            public string? BattleTag { get; set; }
-        }
-
-        private class BnetLoginSession
-        {
-            public DateTime Expiry { get; set; }
-            public string? BattleNetId { get; set; }
-            public string? BattleTag { get; set; }
-        }
 
         public AuthController(AppDbContext context, TokenService tokenService, IPasswordHasher<User> passwordHasher, WowAuditService wow, BlizzardService blizzard)
         {
@@ -346,11 +325,7 @@ namespace FairLoot.Controllers
         {
             // Clean up expired sessions
             var now = DateTime.UtcNow;
-            foreach (var key in _bnetSessions.Keys.ToList())
-            {
-                if (_bnetSessions.TryGetValue(key, out var s) && s.Expiry < now)
-                    _bnetSessions.TryRemove(key, out _);
-            }
+            await _context.BnetSessions.Where(s => s.Expiry < now).ExecuteDeleteAsync();
 
             // Exchange code for user token
             var userToken = await _blizzard.ExchangeCodeForTokenAsync(request.Code, request.RedirectUri, request.Region);
@@ -372,14 +347,16 @@ namespace FairLoot.Controllers
 
             // Store in session
             var sessionId = Guid.NewGuid().ToString("N");
-            _bnetSessions[sessionId] = new BnetSession
+            _context.BnetSessions.Add(new Domain.BnetSession
             {
+                Id = sessionId,
                 Expiry = DateTime.UtcNow.AddMinutes(15),
-                Characters = enriched,
+                CharactersJson = JsonSerializer.Serialize(enriched),
                 Region = request.Region,
                 BattleNetId = userInfo.Sub,
                 BattleTag = userInfo.BattleTag
-            };
+            });
+            await _context.SaveChangesAsync();
 
             // Check which guilds this BattleNetId is already registered in
             var registeredGuilds = await _context.Users
@@ -397,13 +374,22 @@ namespace FairLoot.Controllers
         public async Task<IActionResult> BnetRegister(BnetRegisterRequest request)
         {
             // Validate session
-            if (!_bnetSessions.TryRemove(request.SessionId, out var session) || session.Expiry < DateTime.UtcNow)
+            var session = await _context.BnetSessions.FirstOrDefaultAsync(s => s.Id == request.SessionId);
+            if (session == null || session.Expiry < DateTime.UtcNow)
                 return BadRequest("Session expired. Please connect with Battle.net again.");
 
-            if (request.CharacterIndex < 0 || request.CharacterIndex >= session.Characters.Count)
+            // Consume immediately (one-time use), regardless of what happens below
+            var characters = JsonSerializer.Deserialize<List<BnetCharacterInfo>>(session.CharactersJson) ?? new();
+            var sessionRegion = session.Region;
+            var sessionBattleNetId = session.BattleNetId;
+            var sessionBattleTag = session.BattleTag;
+            _context.BnetSessions.Remove(session);
+            await _context.SaveChangesAsync();
+
+            if (request.CharacterIndex < 0 || request.CharacterIndex >= characters.Count)
                 return BadRequest("Invalid character selection.");
 
-            var selectedChar = session.Characters[request.CharacterIndex];
+            var selectedChar = characters[request.CharacterIndex];
 
             // Character must have a guild
             if (string.IsNullOrEmpty(selectedChar.GuildName) || string.IsNullOrEmpty(selectedChar.GuildRealmSlug))
@@ -412,7 +398,7 @@ namespace FairLoot.Controllers
             var guildName = selectedChar.GuildName;
             var guildRealmSlug = selectedChar.GuildRealmSlug;
             var guildRealmName = selectedChar.GuildRealmName ?? selectedChar.RealmName;
-            var region = session.Region;
+            var region = sessionRegion;
 
             // Check if this BattleNetId already has a user in this guild
             // Matches case/whitespace-insensitively: guild name/server here come straight from
@@ -422,7 +408,7 @@ namespace FairLoot.Controllers
                 g.Name.Trim().ToLower() == guildName.Trim().ToLower() &&
                 g.Server.Trim().ToLower() == guildRealmName.Trim().ToLower());
 
-            if (existingGuild != null && await _context.Users.AnyAsync(u => u.BattleNetId == session.BattleNetId && u.GuildId == existingGuild.Id))
+            if (existingGuild != null && await _context.Users.AnyAsync(u => u.BattleNetId == sessionBattleNetId && u.GuildId == existingGuild.Id))
                 return BadRequest("You are already registered in this guild. Please login instead.");
 
             if (existingGuild != null)
@@ -435,8 +421,8 @@ namespace FairLoot.Controllers
                     Role = UserRoles.Reader,
                     IsApproved = false,
                     CharacterName = selectedChar.Name,
-                    BattleNetId = session.BattleNetId,
-                    BattleTag = session.BattleTag
+                    BattleNetId = sessionBattleNetId,
+                    BattleTag = sessionBattleTag
                 };
                 _context.Users.Add(user);
                 await _context.SaveChangesAsync();
@@ -472,8 +458,8 @@ namespace FairLoot.Controllers
                 Role = UserRoles.Admin,
                 IsApproved = true,
                 CharacterName = selectedChar.Name,
-                BattleNetId = session.BattleNetId,
-                BattleTag = session.BattleTag
+                BattleNetId = sessionBattleNetId,
+                BattleTag = sessionBattleTag
             };
             _context.Users.Add(adminUser);
             await _context.SaveChangesAsync();
@@ -544,17 +530,17 @@ namespace FairLoot.Controllers
             // Multiple accounts — return selection
             // Clean up expired login sessions
             var now = DateTime.UtcNow;
-            foreach (var key in _bnetLoginSessions.Keys.ToList())
-                if (_bnetLoginSessions.TryGetValue(key, out var s) && s.Expiry < now)
-                    _bnetLoginSessions.TryRemove(key, out _);
+            await _context.BnetLoginSessions.Where(s => s.Expiry < now).ExecuteDeleteAsync();
 
             var sessionId = Guid.NewGuid().ToString("N");
-            _bnetLoginSessions[sessionId] = new BnetLoginSession
+            _context.BnetLoginSessions.Add(new Domain.BnetLoginSession
             {
+                Id = sessionId,
                 Expiry = DateTime.UtcNow.AddMinutes(10),
                 BattleNetId = userInfo.Sub,
                 BattleTag = userInfo.BattleTag
-            };
+            });
+            await _context.SaveChangesAsync();
 
             var accounts = users.Select(u => new
             {
@@ -574,8 +560,12 @@ namespace FairLoot.Controllers
         [HttpPost("bnet/login/select")]
         public async Task<IActionResult> BnetLoginSelect([FromBody] BnetLoginSelectRequest request)
         {
-            if (!_bnetLoginSessions.TryRemove(request.SessionId, out var session) || session.Expiry < DateTime.UtcNow)
+            var session = await _context.BnetLoginSessions.FirstOrDefaultAsync(s => s.Id == request.SessionId);
+            if (session == null || session.Expiry < DateTime.UtcNow)
                 return BadRequest("Session expired. Please login again.");
+
+            _context.BnetLoginSessions.Remove(session);
+            await _context.SaveChangesAsync();
 
             var user = await _context.Users
                 .Include(u => u.Guild)

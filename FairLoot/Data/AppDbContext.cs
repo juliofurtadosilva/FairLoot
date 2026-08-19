@@ -19,6 +19,8 @@ namespace FairLoot.Data
         public DbSet<Season> Seasons { get; set; }
         public DbSet<RaidImage> RaidImages { get; set; }
         public DbSet<SimcUploadLog> SimcUploadLogs { get; set; }
+        public DbSet<BnetSession> BnetSessions { get; set; }
+        public DbSet<BnetLoginSession> BnetLoginSessions { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -84,6 +86,9 @@ namespace FairLoot.Data
             modelBuilder.Entity<RaidImage>()
                 .HasIndex(r => new { r.GuildId, r.EntityType, r.Name })
                 .IsUnique();
+
+            modelBuilder.Entity<BnetSession>().ToTable("bnet_sessions");
+            modelBuilder.Entity<BnetLoginSession>().ToTable("bnet_login_sessions");
         }
     }
 }
