@@ -80,6 +80,10 @@ export default function LootHistory() {
   const [redistSelected, setRedistSelected] = useState('')
   const [redistLoading, setRedistLoading] = useState(false)
   const [redistSingleUpgrade, setRedistSingleUpgrade] = useState(false)
+  // full roster, for the manual fallback when the intended recipient isn't in the suggestion list
+  const [chars, setChars] = useState<any[]>([])
+  const [redistManualChar, setRedistManualChar] = useState('')
+  const [redistManualMode, setRedistManualMode] = useState<'score' | 'noscore' | 'transmog'>('noscore')
 
   // pagination
   const PAGE_SIZE = 20
@@ -156,10 +160,14 @@ export default function LootHistory() {
     fetchSeasons()
     fetchHistory()
     if (isDemoMode()) {
-      setScoreRanking(getDemoCharacters().map((c: any) => ({ name: c.name, class: c.class, score: c.score ?? 0 })).sort((a, b) => b.score - a.score))
+      const c = getDemoCharacters()
+      setChars(c)
+      setScoreRanking(c.map((ch: any) => ({ name: ch.name, class: ch.class, score: ch.score ?? 0 })).sort((a, b) => b.score - a.score))
     } else {
       api.get('/api/guild/characters').then(r => {
-        const ranking = (r.data || []).map((c: any) => ({ name: c.name, class: c.class, score: c.score ?? 0 })).sort((a: any, b: any) => b.score - a.score)
+        const list = r.data || []
+        setChars(list)
+        const ranking = list.map((ch: any) => ({ name: ch.name, class: ch.class, score: ch.score ?? 0 })).sort((a: any, b: any) => b.score - a.score)
         setScoreRanking(ranking)
       }).catch(() => {})
     }
@@ -286,6 +294,8 @@ export default function LootHistory() {
       setRedistSelected('')
       setRedistCandidates([])
       setRedistSingleUpgrade(false)
+      setRedistManualChar('')
+      setRedistManualMode('noscore')
 
       // fetch suggestions for the item
       setRedistLoading(true)
@@ -325,14 +335,22 @@ export default function LootHistory() {
   }
 
   const doRedistribute = async () => {
-    if (!redistributeInfo || !redistSelected) return
+    if (!redistributeInfo) return
+    const usingManual = !!redistManualChar
+    if (!usingManual && !redistSelected) return
+    // manual + transmog mode: drop the assignee, record as a plain transmog (empty assignedTo)
+    const assignedTo = usingManual
+      ? (redistManualMode === 'transmog' ? '' : redistManualChar)
+      : redistSelected
     const alloc = {
       itemId: redistributeInfo.itemId,
       itemName: redistributeInfo.itemName,
-      assignedTo: redistSelected,
+      assignedTo,
       boss: redistributeInfo.boss,
       difficulty: redistributeInfo.difficulty,
-      isSingleUpgrade: redistSingleUpgrade,
+      isSingleUpgrade: usingManual ? false : redistSingleUpgrade,
+      // 'score' mode counts like a normal pick; 'noscore'/'transmog' never score.
+      isManualAssignment: usingManual && redistManualMode !== 'score',
     }
     try {
       if (isDemoMode()) {
@@ -342,9 +360,10 @@ export default function LootHistory() {
           assignedTo: alloc.assignedTo,
           boss: alloc.boss,
           difficulty: alloc.difficulty,
-          // award depends on difficulty (normal=0.5, heroic=1.0, mythic=1.5)
-          awardValue: alloc.isSingleUpgrade ? 0 : (alloc.difficulty === 'normal' ? 0.5 : alloc.difficulty === 'mythic' ? 1.5 : 1.0),
+          // award depends on difficulty (normal=0.5, heroic=1.0, mythic=1.5); transmog/manual-no-score never score
+          awardValue: (!alloc.assignedTo || alloc.isSingleUpgrade || alloc.isManualAssignment) ? 0 : (alloc.difficulty === 'normal' ? 0.5 : alloc.difficulty === 'mythic' ? 1.5 : 1.0),
           note: '',
+          isManualAssignment: alloc.isManualAssignment,
           createdAt: new Date().toISOString(),
         }
         addDemoLootHistory([drop])
@@ -356,6 +375,8 @@ export default function LootHistory() {
       setRedistributeInfo(null)
       setRedistCandidates([])
       setRedistSelected('')
+      setRedistManualChar('')
+      setRedistManualMode('noscore')
     } catch (e) {
       console.error(e)
       showAlert(t('loot.distributeError'))
@@ -684,7 +705,7 @@ export default function LootHistory() {
               {t('history.redistributeTitle')}
             </div>
             <button
-              onClick={() => { setRedistributeInfo(null); setRedistCandidates([]); setRedistSelected('') }}
+              onClick={() => { setRedistributeInfo(null); setRedistCandidates([]); setRedistSelected(''); setRedistManualChar(''); setRedistManualMode('noscore') }}
               className="lh-redistribute-close"
             >✕</button>
           </div>
@@ -704,12 +725,12 @@ export default function LootHistory() {
           {!redistLoading && upgradeCandidates.length > 0 && (
             <div className="lh-redistribute-candidates">
               {upgradeCandidates.map((c, k) => {
-                const isSelected = redistSelected === c.characterName
+                const isSelected = !redistManualChar && redistSelected === c.characterName
                 const classLabel = c.class ? ` (${c.class})` : ''
                 return (
                   <button
                     key={k}
-                    onClick={() => setRedistSelected(c.characterName)}
+                    onClick={() => { setRedistSelected(c.characterName); setRedistManualChar('') }}
                     title={`Upgrade: ${Number(c.itemPercentage).toFixed(1)}% | Score: ${Number(c.overallScore).toFixed(1)} | Priority: ${Number(c.priority).toFixed(3)}`}
                     className={"lh-redistribute-candidate" + (isSelected ? ' lh-redistribute-candidate--selected' : '')}
                   >
@@ -723,15 +744,58 @@ export default function LootHistory() {
             </div>
           )}
 
+          {/* Manual fallback — for when the intended recipient isn't in the suggestion list above */}
+          {!redistLoading && (
+            <div className="lh-redistribute-manual">
+              <select
+                className="candidate-select"
+                value={redistManualChar}
+                onChange={e => {
+                  const v = e.target.value
+                  setRedistManualChar(v)
+                  if (v) { setRedistSelected(''); setRedistManualMode(prev => prev || 'noscore') }
+                }}
+                title={t('loot.manualAssign')}
+              >
+                <option value="">{t('loot.manualAssign')}</option>
+                {chars.slice().sort((a: any, b: any) => (a.name || '').localeCompare(b.name || '')).map((c: any) => (
+                  <option key={c.id ?? c.name} value={c.name}>{c.name}</option>
+                ))}
+              </select>
+              {redistManualChar && (
+                <div className="manual-score-toggle" role="group" aria-label={t('loot.manualModeLabel')}>
+                  <button
+                    type="button"
+                    className={"manual-mode-btn" + (redistManualMode === 'score' ? ' active-score' : '')}
+                    onClick={() => setRedistManualMode('score')}
+                    title={t('loot.manualModeScore')}
+                  >{t('loot.manualModeScore')}</button>
+                  <button
+                    type="button"
+                    className={"manual-mode-btn" + (redistManualMode === 'noscore' ? ' active-noscore' : '')}
+                    onClick={() => setRedistManualMode('noscore')}
+                    title={t('loot.manualModeNoScore')}
+                  >{t('loot.manualModeNoScore')}</button>
+                  <button
+                    type="button"
+                    className={"manual-mode-btn" + (redistManualMode === 'transmog' ? ' active-transmog' : '')}
+                    onClick={() => setRedistManualMode('transmog')}
+                    title={t('loot.manualModeTransmog')}
+                  >{t('loot.manualModeTransmog')}</button>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Actions */}
           <div className="lh-redistribute-actions">
             <button
               onClick={doRedistribute}
-              disabled={!redistSelected || redistLoading}
+              disabled={(!redistSelected && !redistManualChar) || redistLoading}
               className="lh-redistribute-confirm"
             >{t('loot.distribute')}</button>
             <button
-              onClick={() => { setRedistributeInfo(null); setRedistCandidates([]); setRedistSelected('') }}
+              onClick={() => { setRedistributeInfo(null); setRedistCandidates([]); setRedistSelected(''); setRedistManualChar(''); setRedistManualMode('noscore') }}
               className="lh-redistribute-dismiss"
             >{t('history.dismiss')}</button>
           </div>

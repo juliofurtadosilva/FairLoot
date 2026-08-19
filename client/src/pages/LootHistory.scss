@@ -473,6 +473,14 @@
   flex-shrink:0;
 }
 
+.lh-redistribute-manual{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  border-top:1px solid var(--border);
+  padding-top:8px;
+}
+
 .lh-redistribute-actions{
   display:flex;
   gap:8px;
