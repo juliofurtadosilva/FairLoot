@@ -29,6 +29,10 @@ namespace FairLoot.Services
         private static readonly ConcurrentDictionary<(int Id, string Locale), (DateTime Expiry, string? Name)> _instanceLocalizedNameCache = new();
         private static readonly ConcurrentDictionary<(int Id, string Locale), (DateTime Expiry, string? Name)> _encounterLocalizedNameCache = new();
         private static readonly ConcurrentDictionary<int, (DateTime Expiry, string? ExpansionName)> _instanceExpansionCache = new();
+        // "boss name not found anywhere in the journal" result cache — short TTL so newly-indexed
+        // content (e.g. a raid tier the Journal API just added) is picked up without a restart.
+        private static readonly TimeSpan _encounterSearchNullTtl = TimeSpan.FromHours(2);
+        private static readonly ConcurrentDictionary<string, (int EncounterId, DateTime CachedAt)> _encounterSearchCache = new();
 
         public BlizzardService(HttpClient http, IConfiguration config, ILogger<BlizzardService> logger)
         {
@@ -172,10 +176,34 @@ namespace FairLoot.Services
             }
         }
 
+        // WowAudit (source of the raid/boss names shown in the app) and Blizzard's own Journal API
+        // are two independent data sources — their spelling of the same encounter can differ in
+        // punctuation (hyphens, commas, ampersands) even when the words match. Normalize aggressively
+        // so those differences don't break the exact-match lookup used to fetch the localized name/art.
         private static string NormalizeForMatch(string? s)
         {
             if (string.IsNullOrWhiteSpace(s)) return string.Empty;
-            return s.Trim().ToLowerInvariant().Replace("'", "").Replace("'", "").Replace("’", "").Replace("`", "");
+            var t = s.Trim().ToLowerInvariant().Replace("'", "").Replace("'", "").Replace("’", "").Replace("`", "");
+            var sb = new System.Text.StringBuilder(t.Length);
+            foreach (var ch in t) sb.Append(char.IsLetterOrDigit(ch) ? ch : ' ');
+            return string.Join(' ', sb.ToString().Split(' ', StringSplitOptions.RemoveEmptyEntries));
+        }
+
+        /// <summary>
+        /// Match an encounter by name, tolerating a subtitle/epithet one source has and the other
+        /// doesn't (e.g. WowAudit's "Belo'ren, Child of Al'ar" vs the Journal's plain "Belo'ren") —
+        /// tries an exact normalized match first, then falls back to a prefix match either direction.
+        /// </summary>
+        private static (int Id, string Name) FindBestEncounterMatch(List<(int Id, string Name)> encounters, string normalizedTarget)
+        {
+            if (string.IsNullOrEmpty(normalizedTarget)) return default;
+            var exact = encounters.FirstOrDefault(e => NormalizeForMatch(e.Name) == normalizedTarget);
+            if (exact.Id != 0) return exact;
+            return encounters.FirstOrDefault(e =>
+            {
+                var n = NormalizeForMatch(e.Name);
+                return n.Length > 0 && (normalizedTarget.StartsWith(n) || n.StartsWith(normalizedTarget));
+            });
         }
 
         /// <summary>List of all journal (encounter journal) raid/dungeon instances, cached ~24h.</summary>
@@ -414,7 +442,7 @@ namespace FairLoot.Services
 
             var encounters = await GetJournalInstanceEncountersAsync(inst.Id, region);
             var bossTarget = NormalizeForMatch(bossName);
-            var enc = encounters.FirstOrDefault(e => NormalizeForMatch(e.Name) == bossTarget);
+            var enc = FindBestEncounterMatch(encounters, bossTarget);
             if (enc.Id == 0) return null;
 
             var displayId = await GetJournalEncounterPrimaryCreatureDisplayIdAsync(enc.Id, region);
@@ -426,9 +454,19 @@ namespace FairLoot.Services
         /// Find a journal encounter id anywhere in the journal by (normalized) boss name — bounded
         /// concurrency across every instance, everything cached per-instance afterward so repeat
         /// lookups (including for other bosses) are fast. Returns 0 if not found.
+        /// A boss name that never matches anything (e.g. current/PTR content the Journal API hasn't
+        /// indexed yet) is cached as "not found" for a couple hours so it stops re-scanning every
+        /// journal instance on every single request — that repeated full scan was the "delay" some
+        /// unmatched bosses had on every language switch.
         /// </summary>
         private async Task<int> FindEncounterIdAnywhereAsync(string normalizedBossName, string region)
         {
+            if (_encounterSearchCache.TryGetValue(normalizedBossName, out var cachedSearch))
+            {
+                if (cachedSearch.EncounterId != 0) return cachedSearch.EncounterId;
+                if (DateTime.UtcNow - cachedSearch.CachedAt < _encounterSearchNullTtl) return 0;
+            }
+
             var instances = await GetJournalInstanceIndexAsync(region);
             var tasks = instances.Select(async inst =>
             {
@@ -436,8 +474,7 @@ namespace FairLoot.Services
                 try
                 {
                     var encounters = await GetJournalInstanceEncountersAsync(inst.Id, region);
-                    var match = encounters.FirstOrDefault(e => NormalizeForMatch(e.Name) == normalizedBossName);
-                    return match.Id;
+                    return FindBestEncounterMatch(encounters, normalizedBossName).Id;
                 }
                 finally
                 {
@@ -446,7 +483,9 @@ namespace FairLoot.Services
             });
 
             var results = await Task.WhenAll(tasks);
-            return results.FirstOrDefault(id => id != 0);
+            var found = results.FirstOrDefault(id => id != 0);
+            _encounterSearchCache[normalizedBossName] = (found, DateTime.UtcNow);
+            return found;
         }
 
         /// <summary>
@@ -614,8 +653,7 @@ namespace FairLoot.Services
                 if (inst.Id != 0)
                 {
                     var encounters = await GetJournalInstanceEncountersAsync(inst.Id, region);
-                    var enc = encounters.FirstOrDefault(e => NormalizeForMatch(e.Name) == bossTarget);
-                    encounterId = enc.Id;
+                    encounterId = FindBestEncounterMatch(encounters, bossTarget).Id;
                 }
             }
 
