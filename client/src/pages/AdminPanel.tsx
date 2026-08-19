@@ -474,6 +474,7 @@ export default function AdminPanel() {
                   className="admin-input"
                   placeholder="123456789012345678"
                 />
+                <button onClick={save} disabled={loading} className="admin-btn">{t('admin.save')}</button>
               </div>
             </div>
 

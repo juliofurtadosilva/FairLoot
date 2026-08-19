@@ -12,6 +12,8 @@ for (const [name, value] of Object.entries({ DISCORD_TOKEN, FAIRLOOT_API_URL, FA
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
+const DIFFICULTY_LABELS = { normal: 'Normal', heroic: 'Heroico', mythic: 'Mítico' };
+
 client.once(Events.ClientReady, c => {
   console.log(`Bot online como ${c.user.tag}`);
 });
@@ -46,6 +48,7 @@ client.on(Events.InteractionCreate, async interaction => {
 
     if (data?.success) {
       const bits = [`✅ Enviado para **${data.characterName}**`];
+      if (data.difficulty) bits.push(`[${DIFFICULTY_LABELS[data.difficulty] || data.difficulty}]`);
       if (data.realm) bits.push(`(${data.realm})`);
       if (data.spec) bits.push(`· ${data.spec}`);
       if (data.source) bits.push(`· via ${data.source}`);

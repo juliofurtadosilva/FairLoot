@@ -59,6 +59,7 @@ builder.Services.AddHostedService<WowAuditSyncService>();
 builder.Services.AddHttpClient<ReportLinkService>();
 builder.Services.AddScoped<ReportLinkService>();
 builder.Services.AddScoped<SimcUploadService>();
+builder.Services.AddHostedService<SimcUploadLogCleanupService>();
 
 // JWT configuration
 var jwtSettings = builder.Configuration.GetSection("Jwt");

@@ -92,6 +92,25 @@ export default function ReportUpload() {
   const formatDate = (iso: string) =>
     new Date(iso).toLocaleString(lang === 'pt' ? 'pt-BR' : 'en-US', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
 
+  const renderLogTable = (entries: LogEntry[]) => (
+    <table className="report-upload-log-table">
+      <tbody>
+        {entries.map(entry => (
+          <tr key={entry.id} className={entry.success ? '' : 'report-upload-log-row--error'}>
+            <td className="report-upload-log-date">{formatDate(entry.createdAt)}</td>
+            <td>{entry.success ? '✓' : '✗'}</td>
+            <td className="report-upload-log-diff" style={{ color: diffColor(entry.difficulty) }} title={entry.difficulty || undefined}>
+              {diffLetter(entry.difficulty)}
+            </td>
+            <td>{entry.characterName || '—'}</td>
+            <td className="report-upload-muted">{entry.spec}</td>
+            <td className="report-upload-muted">{t('reports.historyBy')} {entry.submittedBy}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+
   return (
     <div className="tab-content">
       <div className="tab-card admin-card report-upload-card">
@@ -142,22 +161,10 @@ export default function ReportUpload() {
           {log.length === 0 ? (
             <div className="report-upload-log-empty">{t('reports.historyEmpty')}</div>
           ) : (
-            <table className="report-upload-log-table">
-              <tbody>
-                {log.map(entry => (
-                  <tr key={entry.id} className={entry.success ? '' : 'report-upload-log-row--error'}>
-                    <td className="report-upload-log-date">{formatDate(entry.createdAt)}</td>
-                    <td>{entry.success ? '✓' : '✗'}</td>
-                    <td className="report-upload-log-diff" style={{ color: diffColor(entry.difficulty) }} title={entry.difficulty || undefined}>
-                      {diffLetter(entry.difficulty)}
-                    </td>
-                    <td>{entry.characterName || '—'}</td>
-                    <td className="report-upload-muted">{entry.spec}</td>
-                    <td className="report-upload-muted">{t('reports.historyBy')} {entry.submittedBy}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="report-upload-log-columns">
+              {renderLogTable(log.filter((_, i) => i % 2 === 0))}
+              {renderLogTable(log.filter((_, i) => i % 2 === 1))}
+            </div>
           )}
         </div>
       </div>

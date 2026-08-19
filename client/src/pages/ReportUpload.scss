@@ -72,8 +72,23 @@
   color: var(--muted);
 }
 
+.report-upload-log-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 16px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+@media (max-width: 900px) {
+  .report-upload-log-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
 .report-upload-log-table {
   width: 100%;
+  height: fit-content;
   border-collapse: collapse;
   font-size: 11px;
 }
