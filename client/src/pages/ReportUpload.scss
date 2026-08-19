@@ -1,0 +1,145 @@
+.report-upload-card {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.report-upload-desc {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.report-upload-warning {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #ef4444;
+  border-radius: 4px;
+  padding: 10px 14px;
+  font-size: 13px;
+}
+
+.report-upload-form {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+}
+
+.report-upload-input {
+  flex: 1;
+  min-width: 0;
+  padding: 14px 18px;
+  font-size: 15px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--input-bg);
+  color: var(--text);
+
+  &:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+}
+
+.report-upload-submit {
+  padding: 0 24px;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.report-upload-log {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--panel-bg);
+  border-radius: 4px;
+  padding: 10px 14px;
+  width: 100%;
+}
+
+.report-upload-log-header {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.report-upload-log-empty {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.report-upload-log-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.report-upload-log-table td {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.report-upload-log-table td:last-child {
+  width: 100%;
+  white-space: normal;
+}
+
+.report-upload-log-date {
+  color: var(--muted);
+  font-family: monospace;
+}
+
+.report-upload-log-diff {
+  font-weight: 700;
+  text-align: center;
+}
+
+.report-upload-log-row--error td:nth-child(2) {
+  color: #ef4444;
+}
+
+.report-upload-entry {
+  display: flex;
+  align-items: center;
+  border-radius: 4px;
+  padding: 10px 14px;
+  font-size: 13px;
+  border-left: 3px solid;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.report-upload-entry--ok {
+  background: rgba(16, 185, 129, 0.08);
+  border-left-color: #10b981;
+}
+
+.report-upload-entry--error {
+  background: rgba(239, 68, 68, 0.08);
+  border-left-color: #ef4444;
+}
+
+.report-upload-diff {
+  font-weight: 700;
+  margin-right: 8px;
+}
+
+.report-upload-muted {
+  color: var(--muted);
+}
+
+.report-upload-badge {
+  margin-left: 8px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 6px;
+}

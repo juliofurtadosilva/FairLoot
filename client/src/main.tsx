@@ -8,6 +8,7 @@ import Dashboard from './pages/Dashboard'
 import Loot from './pages/Loot'
 import Members from './pages/Members'
 import Wishlist from './pages/Wishlist'
+import ReportUpload from './pages/ReportUpload'
 import LootHistory from './pages/LootHistory'
 import AdminPanel from './pages/AdminPanel'
 import BnetCallback from './pages/BnetCallback'
@@ -29,6 +30,7 @@ function App() {
             <Route path="loot" element={<Loot />} />
             <Route path="members" element={<Members />} />
             <Route path="wishlist" element={<Wishlist />} />
+            <Route path="reports" element={<ReportUpload />} />
             <Route path="history" element={<LootHistory />} />
             <Route path="admin" element={<AdminPanel />} />
           </Route>

@@ -16,12 +16,14 @@ namespace FairLoot.Controllers
     {
         private readonly AppDbContext _context;
         private readonly WowAuditService _wow;
+        private readonly SimcUploadService _simcUpload;
         private readonly ILogger<GuildController> _logger;
 
-        public GuildController(AppDbContext context, WowAuditService wow)
+        public GuildController(AppDbContext context, WowAuditService wow, SimcUploadService simcUpload)
         {
             _context = context;
             _wow = wow;
+            _simcUpload = simcUpload;
             // logger added for better error diagnostics
             _logger = NullLogger<GuildController>.Instance;
         }
@@ -214,6 +216,37 @@ namespace FairLoot.Controllers
             return Ok(new { summary, raw = rawObj });
         }
 
+        // POST api/guild/wowaudit/upload-report
+        // Auto-detects which character a pasted Raidbots/QuestionablyEpic report link belongs to and
+        // uploads it via wowaudit's public "POST /v1/wishlists" endpoint (same api_key already used for reads) —
+        // sparing the guild leader from manually picking the character on wowaudit's own site.
+        [HttpPost("wowaudit/upload-report")]
+        public async Task<IActionResult> UploadWowAuditReport([FromBody] DTOs.SubmitReportRequestDto request)
+        {
+            var (user, error) = await GetAuthenticatedAdminAsync(_context);
+            if (error != null) return error;
+
+            var submittedBy = user!.BattleTag ?? user.Email ?? "?";
+            var result = await _simcUpload.UploadAsync(user.Guild!, request.Url, submittedBy, user.Id);
+            return result.Success ? Ok(result) : UnprocessableEntity(result);
+        }
+
+        // GET api/guild/wowaudit/upload-report/history
+        [HttpGet("wowaudit/upload-report/history")]
+        public async Task<IActionResult> GetWowAuditUploadHistory([FromQuery] int take = 30)
+        {
+            var (user, error) = await GetAuthenticatedAdminAsync(_context);
+            if (error != null) return error;
+
+            var entries = await _context.SimcUploadLogs
+                .Where(l => l.GuildId == user!.GuildId)
+                .OrderByDescending(l => l.CreatedAt)
+                .Take(Math.Clamp(take, 1, 100))
+                .ToListAsync();
+
+            return Ok(entries);
+        }
+
         // PUT api/guild
         [HttpPut]
         public async Task<IActionResult> UpdateGuild([FromBody] FairLoot.DTOs.GuildUpdateDto updatedGuild)
@@ -224,6 +257,7 @@ namespace FairLoot.Controllers
             if (!string.IsNullOrEmpty(updatedGuild.Name)) user!.Guild!.Name = updatedGuild.Name;
             if (!string.IsNullOrEmpty(updatedGuild.Server)) user!.Guild!.Server = updatedGuild.Server;
             if (updatedGuild.WowauditApiKey != null) user!.Guild!.WowauditApiKey = updatedGuild.WowauditApiKey;
+            if (updatedGuild.DiscordServerId != null) user!.Guild!.DiscordServerId = updatedGuild.DiscordServerId;
             if (updatedGuild.PriorityAlpha.HasValue && updatedGuild.PriorityAlpha.Value >= 0 && updatedGuild.PriorityAlpha.Value <= 1)
                 user!.Guild!.PriorityAlpha = updatedGuild.PriorityAlpha.Value;
             if (updatedGuild.PriorityBeta.HasValue && updatedGuild.PriorityBeta.Value >= 0 && updatedGuild.PriorityBeta.Value <= 1)

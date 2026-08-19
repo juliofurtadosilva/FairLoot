@@ -18,6 +18,7 @@ namespace FairLoot.Data
         public DbSet<WishlistCache> WishlistCaches { get; set; }
         public DbSet<Season> Seasons { get; set; }
         public DbSet<RaidImage> RaidImages { get; set; }
+        public DbSet<SimcUploadLog> SimcUploadLogs { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

@@ -56,6 +56,9 @@ builder.Services.AddScoped<WowAuditService>();
 builder.Services.AddHttpClient<BlizzardService>();
 builder.Services.AddScoped<BlizzardService>();
 builder.Services.AddHostedService<WowAuditSyncService>();
+builder.Services.AddHttpClient<ReportLinkService>();
+builder.Services.AddScoped<ReportLinkService>();
+builder.Services.AddScoped<SimcUploadService>();
 
 // JWT configuration
 var jwtSettings = builder.Configuration.GetSection("Jwt");

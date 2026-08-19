@@ -1,4 +1,5 @@
 using System.Net.Http.Headers;
+using System.Text;
 using System.Text.Json;
 using FairLoot.Data;
 using FairLoot.Domain;
@@ -164,6 +165,58 @@ namespace FairLoot.Services
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// Uploads a Raidbots Droptimizer / QuestionablyEpic report to a character's wowaudit wishlist,
+        /// via the documented public "POST /v1/wishlists" endpoint (same api_key already used for reads).
+        /// wowaudit matches the character by name/id itself and figures out which difficulties/items to
+        /// update from the report content — no difficulty or per-character wowaudit id needed from us.
+        /// </summary>
+        public async Task<(bool Success, string ResponseBody)> SubmitDroptimizerReportAsync(
+            string apiKeyOrUrl, string reportId, string? characterName, string configurationName = "Single Target",
+            bool replaceManualEdits = true, bool clearConduits = true)
+        {
+            var url = BuildCandidateUrls(apiKeyOrUrl, "v1/wishlists")[0];
+
+            var payload = new
+            {
+                report_id = reportId,
+                character_name = characterName,
+                configuration_name = configurationName,
+                replace_manual_edits = replaceManualEdits,
+                clear_conduits = clearConduits
+            };
+
+            using var req = new HttpRequestMessage(HttpMethod.Post, url)
+            {
+                Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json")
+            };
+            using var res = await _http.SendAsync(req);
+            var body = await res.Content.ReadAsStringAsync();
+
+            // wowaudit sometimes returns HTTP 200 with a body-level failure (e.g. {"created":false,"error":"..."})
+            // instead of a non-2xx status — treat "created": false as a failure too.
+            var success = res.IsSuccessStatusCode;
+            if (success)
+            {
+                try
+                {
+                    using var doc = JsonDocument.Parse(body);
+                    if (doc.RootElement.ValueKind == JsonValueKind.Object &&
+                        doc.RootElement.TryGetProperty("created", out var created) &&
+                        created.ValueKind == JsonValueKind.False)
+                        success = false;
+                }
+                catch (JsonException)
+                {
+                    // non-JSON success body — leave as success
+                }
+            }
+
+            if (!success)
+                _logger.LogWarning("wowaudit report upload failed ({Status}): {Body}", res.StatusCode, body);
+            return (success, body);
         }
 
         // Get characters for a guild using a stored wowaudit credential.

@@ -3,6 +3,7 @@ using System;
 using FairLoot.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace FairLoot.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260819033138_AddWowauditTeamIdAndSessionCookie")]
+    partial class AddWowauditTeamIdAndSessionCookie
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -66,9 +69,6 @@ namespace FairLoot.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("DiscordServerId")
-                        .HasColumnType("text");
-
                     b.Property<int>("MinIlevelHeroic")
                         .HasColumnType("integer");
 
@@ -106,6 +106,12 @@ namespace FairLoot.Migrations
 
                     b.Property<string>("WowauditApiKey")
                         .HasColumnType("text");
+
+                    b.Property<string>("WowauditSessionCookie")
+                        .HasColumnType("text");
+
+                    b.Property<int?>("WowauditTeamId")
+                        .HasColumnType("integer");
 
                     b.HasKey("Id");
 
@@ -259,54 +265,6 @@ namespace FairLoot.Migrations
                     b.HasIndex("GuildId");
 
                     b.ToTable("seasons", (string)null);
-                });
-
-            modelBuilder.Entity("FairLoot.Domain.SimcUploadLog", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("CharacterName")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Difficulty")
-                        .HasColumnType("text");
-
-                    b.Property<string>("ErrorMessage")
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("GuildId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Realm")
-                        .HasColumnType("text");
-
-                    b.Property<string>("ReportId")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Source")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Spec")
-                        .HasColumnType("text");
-
-                    b.Property<string>("SubmittedBy")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<bool>("Success")
-                        .HasColumnType("boolean");
-
-                    b.Property<Guid?>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("SimcUploadLogs");
                 });
 
             modelBuilder.Entity("FairLoot.Domain.User", b =>

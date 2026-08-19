@@ -275,6 +275,7 @@ export default function AdminPanel() {
                   </span>
                 </div>
               </div>
+
               <div className="admin-weights-row">
                 <div className="admin-weight-group">
                   <label style={{ fontSize: 12, color: '#fb923c' }}>α Alpha:</label>
@@ -459,6 +460,21 @@ export default function AdminPanel() {
               <div className="admin-section-label">{t('admin.raidImages')}</div>
               <div className="admin-formula-item">{t('admin.raidImagesDesc')}</div>
               <RaidImageEditor images={raidImages} onSave={saveRaidImage} t={t} />
+            </div>
+
+            {/* Discord bot link */}
+            <div className="admin-settings">
+              <div className="admin-section-label">{t('admin.discordBot')}</div>
+              <div className="admin-formula-item">{t('admin.discordBotDesc')}</div>
+              <div className="admin-field-row">
+                <label className="admin-label">{t('admin.discordServerId')}:</label>
+                <input
+                  value={form.discordServerId || ''}
+                  onChange={e => setForm({ ...form, discordServerId: e.target.value })}
+                  className="admin-input"
+                  placeholder="123456789012345678"
+                />
+              </div>
             </div>
 
             {/* Characters section */}

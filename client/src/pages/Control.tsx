@@ -52,6 +52,13 @@ const NavIcons: Record<string, React.ReactNode> = {
       <path d="M12 3v2.4M12 18.6V21M4.9 6.9l1.7 1.7M17.4 15.4l1.7 1.7M3 12h2.4M18.6 12H21M4.9 17.1l1.7-1.7M17.4 8.6l1.7-1.7" />
     </svg>
   ),
+  reports: (
+    <svg {...svgProps}>
+      <path d="M12 5v9" />
+      <path d="M8 10l4 4 4-4" />
+      <path d="M5 15v3a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3" />
+    </svg>
+  ),
   logout: (
     <svg {...svgProps}>
       <path d="M9 3H5a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h4" />
@@ -142,6 +149,12 @@ export default function Control() {
             <span className="side-label">{t('nav.wishlist')}</span>
             <span className="side-icon">{NavIcons.wishlist}</span>
           </NavLink>
+          {isAdmin && (
+            <NavLink className={navLinkClass} to="reports" title={t('nav.reports')}>
+              <span className="side-label">{t('nav.reports')}</span>
+              <span className="side-icon">{NavIcons.reports}</span>
+            </NavLink>
+          )}
           <NavLink className={navLinkClass} to="history" title={t('nav.history')}>
             <span className="side-label">{t('nav.history')}</span>
             <span className="side-icon">{NavIcons.history}</span>

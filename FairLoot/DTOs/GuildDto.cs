@@ -5,6 +5,7 @@ namespace FairLoot.DTOs
         public string? Name { get; set; }
         public string? Server { get; set; }
         public string? WowauditApiKey { get; set; }
+        public string? DiscordServerId { get; set; }
         public double? PriorityAlpha { get; set; }
         public double? PriorityBeta { get; set; }
         public double? PriorityGamma { get; set; }

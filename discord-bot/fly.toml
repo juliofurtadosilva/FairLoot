@@ -1,0 +1,14 @@
+# Starting point only — `fly launch` will offer to (re)generate this interactively.
+# This app has no HTTP server (it only holds a Discord gateway connection), so there's
+# no [http_service]/[[services]] block on purpose.
+app = "fairloot-discord-bot"  # must be globally unique on Fly — change it if taken
+primary_region = "gru"        # São Paulo
+
+[build]
+
+[processes]
+  app = "node src/index.js"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

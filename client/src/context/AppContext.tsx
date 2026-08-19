@@ -16,7 +16,25 @@ const translations = {
   'nav.wishlist': { pt: 'Wishlist', en: 'Wishlist' },
   'nav.history': { pt: 'Histórico', en: 'History' },
   'nav.admin': { pt: 'Admin', en: 'Admin' },
+  'nav.reports': { pt: 'Atualizar SimC', en: 'Update SimC' },
   'nav.logout': { pt: 'Logout', en: 'Logout' },
+
+  // report upload (raidbots/QE auto-upload to wowaudit)
+  'reports.title': { pt: 'Atualizar SimC', en: 'Update SimC' },
+  'reports.desc': {
+    pt: 'Cole o link de um relatório do Raidbots (Droptimizer) ou do QuestionablyEpic — o FairLoot descobre sozinho de quem é e sobe direto no wowaudit.',
+    en: 'Paste a Raidbots (Droptimizer) or QuestionablyEpic report link — FairLoot figures out whose it is and uploads it straight to wowaudit.',
+  },
+  'reports.placeholder': { pt: 'Cole a URL do relatório aqui...', en: 'Paste the report URL here...' },
+  'reports.submit': { pt: 'Enviar', en: 'Submit' },
+  'reports.sending': { pt: 'Enviando...', en: 'Sending...' },
+  'reports.notConfigured': {
+    pt: 'A sessão do wowaudit ainda não foi configurada. Peça para um Admin configurar o Team ID e a sessão na aba Admin.',
+    en: 'The wowaudit session hasn\'t been configured yet. Ask an Admin to set the Team ID and session in the Admin tab.',
+  },
+  'reports.history': { pt: 'Auditoria de envios', en: 'Upload audit log' },
+  'reports.historyEmpty': { pt: 'Nenhum envio ainda.', en: 'No uploads yet.' },
+  'reports.historyBy': { pt: 'por', en: 'by' },
 
   // home
   'home.welcome': { pt: 'Bem-vindo(a) ao FairLoot', en: 'Welcome to FairLoot' },
@@ -250,6 +268,12 @@ const translations = {
   },
   'admin.raidImagesSaved': { pt: 'Imagem salva', en: 'Image saved' },
   'admin.raidImagesError': { pt: 'Erro ao salvar imagem', en: 'Error saving image' },
+  'admin.discordBot': { pt: 'Bot do Discord', en: 'Discord bot' },
+  'admin.discordBotDesc': {
+    pt: 'Convide o bot do FairLoot pro seu servidor Discord e cole aqui o ID do servidor — é assim que o comando /simc sabe pra qual guilda enviar. Pra pegar o ID: ative o "Modo desenvolvedor" nas configurações do Discord, clique com o botão direito no ícone do servidor → Copiar ID do servidor.',
+    en: 'Invite the FairLoot bot to your Discord server and paste the server ID here — that\'s how /simc knows which guild to send to. To get the ID: enable "Developer Mode" in Discord settings, right-click the server icon → Copy Server ID.',
+  },
+  'admin.discordServerId': { pt: 'Discord Server ID', en: 'Discord Server ID' },
 
   // dashboard chart
   'dash.chartTitle': { pt: 'Distribuição de loot — Season atual', en: 'Loot distribution — Current season' },

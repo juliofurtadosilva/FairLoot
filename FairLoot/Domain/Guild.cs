@@ -11,6 +11,10 @@
         public string? Region { get; set; }
         // optional API key for external wowaudit access (per-guild)
         public string? WowauditApiKey { get; set; }
+        // Discord server (guild) snowflake ID — links this FairLoot guild to a Discord server so the
+        // single, shared FairLoot Discord bot (see discord-bot/) knows which guild a /simc command came
+        // from. Not a secret — Discord server IDs are effectively public.
+        public string? DiscordServerId { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public List<User> Members { get; set; } = new List<User>();
         // characters synced from WowAudit
