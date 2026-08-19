@@ -61,9 +61,11 @@ const NavIcons: Record<string, React.ReactNode> = {
   ),
 }
 
+const PENDING_POLL_MS = 60000
+
 export default function Control() {
   const navigate = useNavigate()
-  const { t, theme, setTheme, lang, setLang } = useApp()
+  const { t, theme, setTheme, lang, setLang, showToast } = useApp()
   const [role, setRole] = useState<string | null>(null)
   const [pendingCount, setPendingCount] = useState(0)
   const demo = isDemoMode()
@@ -73,13 +75,31 @@ export default function Control() {
       setRole('Admin')
       return
     }
+    let interval: ReturnType<typeof setInterval> | undefined
+    let knownCount: number | null = null
+
+    const pollPending = () => {
+      api.get('/api/guild/members/pending').then(p => {
+        const count = (p.data || []).length
+        setPendingCount(count)
+        if (knownCount !== null && count > knownCount) {
+          const diff = count - knownCount
+          showToast(diff === 1 ? t('members.newPendingOne') : `${diff} ${t('members.newPendingMany')}`, 'info')
+        }
+        knownCount = count
+      }).catch(() => {})
+    }
+
     api.get('/api/auth/me').then(r => {
       const userRole = r.data?.role || null
       setRole(userRole)
       if (userRole === 'Admin') {
-        api.get('/api/guild/members/pending').then(p => setPendingCount((p.data || []).length)).catch(() => {})
+        pollPending()
+        interval = setInterval(pollPending, PENDING_POLL_MS)
       }
     }).catch(() => {})
+
+    return () => { if (interval) clearInterval(interval) }
   }, [])
 
   const isAdmin = role === 'Admin'

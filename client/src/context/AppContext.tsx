@@ -81,6 +81,8 @@ const translations = {
   'members.errorFetch': { pt: 'Erro ao buscar membros', en: 'Error fetching members' },
   'members.errorApprove': { pt: 'Erro ao aprovar', en: 'Error approving' },
   'members.errorRemove': { pt: 'Erro ao remover', en: 'Error removing' },
+  'members.newPendingOne': { pt: 'Novo pedido de acesso pendente', en: 'New pending access request' },
+  'members.newPendingMany': { pt: 'Novos pedidos de acesso pendentes', en: 'New pending access requests' },
 
   // wishlist
   'wishlist.title': { pt: 'Wishlist (WowAudit)', en: 'Wishlist (WowAudit)' },

@@ -57,7 +57,10 @@ namespace FairLoot.Controllers
         public async Task<IActionResult> Register(RegisterRequest request)
         {
             // if guild already exists, create user as Reader and mark pending approval
-            var existingGuild = await _context.Guilds.FirstOrDefaultAsync(g => g.Name == request.GuildName && g.Server == request.Server);
+            // (case/whitespace-insensitive match — see note in BnetRegister)
+            var existingGuild = await _context.Guilds.FirstOrDefaultAsync(g =>
+                g.Name.Trim().ToLower() == request.GuildName.Trim().ToLower() &&
+                g.Server.Trim().ToLower() == request.Server.Trim().ToLower());
             if (existingGuild != null)
             {
                 var user = new User
@@ -313,7 +316,9 @@ namespace FairLoot.Controllers
             if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(server))
                 return Ok(new { exists = false });
 
-            var exists = await _context.Guilds.AnyAsync(g => g.Name == name && g.Server == server);
+            var exists = await _context.Guilds.AnyAsync(g =>
+                g.Name.Trim().ToLower() == name.Trim().ToLower() &&
+                g.Server.Trim().ToLower() == server.Trim().ToLower());
             return Ok(new { exists });
         }
 
@@ -410,8 +415,12 @@ namespace FairLoot.Controllers
             var region = session.Region;
 
             // Check if this BattleNetId already has a user in this guild
+            // Matches case/whitespace-insensitively: guild name/server here come straight from
+            // Blizzard's API and may differ in casing from what the guild's original admin typed
+            // during manual registration, which would otherwise silently spawn a duplicate guild.
             var existingGuild = await _context.Guilds.FirstOrDefaultAsync(g =>
-                g.Name == guildName && g.Server == guildRealmName);
+                g.Name.Trim().ToLower() == guildName.Trim().ToLower() &&
+                g.Server.Trim().ToLower() == guildRealmName.Trim().ToLower());
 
             if (existingGuild != null && await _context.Users.AnyAsync(u => u.BattleNetId == session.BattleNetId && u.GuildId == existingGuild.Id))
                 return BadRequest("You are already registered in this guild. Please login instead.");
