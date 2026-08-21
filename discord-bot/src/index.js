@@ -1,4 +1,5 @@
 require('dotenv').config();
+const http = require('http');
 const { Client, GatewayIntentBits, Events } = require('discord.js');
 
 const { DISCORD_TOKEN, FAIRLOOT_API_URL, FAIRLOOT_BOT_SHARED_SECRET } = process.env;
@@ -9,6 +10,15 @@ for (const [name, value] of Object.entries({ DISCORD_TOKEN, FAIRLOOT_API_URL, FA
     process.exit(1);
   }
 }
+
+// Render's free "Web Service" tier requires binding to $PORT and will sleep the
+// instance after 15 minutes with no HTTP traffic — this connection isn't HTTP, so
+// it never counts. This server exists only so an external uptime pinger (e.g.
+// UptimeRobot, free) has something to hit every ~10 minutes to keep the bot awake.
+const PORT = process.env.PORT || 3000;
+http.createServer((req, res) => { res.writeHead(200); res.end('ok'); }).listen(PORT, () => {
+  console.log(`Keep-alive HTTP server listening on ${PORT}`);
+});
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
