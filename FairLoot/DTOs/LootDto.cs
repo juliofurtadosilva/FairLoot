@@ -71,6 +71,11 @@ namespace FairLoot.DTOs
         /// </summary>
         public double Priority { get; set; }
         public bool IsNewPlayer { get; set; }
+        /// <summary>
+        /// True when the wish behind ItemPercentage is flagged outdated by wowaudit (gear changed
+        /// since the last SimC upload) — the loot council should double-check this score before relying on it.
+        /// </summary>
+        public bool ItemPercentageOutdated { get; set; }
     }
 
     public class DistributeRequest

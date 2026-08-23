@@ -51,5 +51,10 @@ namespace FairLoot.DTOs
         public double Percentage { get; set; }
         public double Absolute { get; set; }
         public string? Specialization { get; set; }
+        /// <summary>
+        /// True when wowaudit flags this wish as outdated (the character's equipped gear for this
+        /// slot no longer matches what the last uploaded SimC report assumed).
+        /// </summary>
+        public bool Outdated { get; set; }
     }
 }

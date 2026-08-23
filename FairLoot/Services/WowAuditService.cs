@@ -563,6 +563,7 @@ namespace FairLoot.Services
                                                                         itemSummary.Percentage = wish.TryGetProperty("percentage", out var wp) && wp.ValueKind == JsonValueKind.Number ? wp.GetDouble() : 0;
                                                                         itemSummary.Absolute = wish.TryGetProperty("absolute", out var wa) && wa.ValueKind == JsonValueKind.Number ? wa.GetDouble() : 0;
                                                                         itemSummary.Specialization = wish.TryGetProperty("specialization", out var ws) && ws.ValueKind == JsonValueKind.String ? ws.GetString() : null;
+                                                                        itemSummary.Outdated = wish.TryGetProperty("outdated", out var od) && od.ValueKind == JsonValueKind.Object;
                                                                     }
                                                                     else if (it.TryGetProperty("score_by_spec", out var sbs) && sbs.ValueKind == JsonValueKind.Object)
                                                                     {

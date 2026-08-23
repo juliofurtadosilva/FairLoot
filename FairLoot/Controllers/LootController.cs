@@ -178,6 +178,7 @@ namespace FairLoot.Controllers
                 foreach (var ch in summary)
                 {
                     double bestItemPerc = 0;
+                    bool bestItemOutdated = false;
                     if (ch.Difficulties != null)
                     {
                         foreach (var d in ch.Difficulties)
@@ -190,13 +191,12 @@ namespace FairLoot.Controllers
                                 if (e.Items == null) continue;
                                 foreach (var it in e.Items)
                                 {
-                                    if (item.ItemId != null && it.Id != null && item.ItemId == it.Id)
+                                    var matches = (item.ItemId != null && it.Id != null && item.ItemId == it.Id)
+                                        || (!string.IsNullOrEmpty(item.ItemName) && string.Equals(item.ItemName, it.Name, StringComparison.OrdinalIgnoreCase));
+                                    if (matches && it.Percentage > bestItemPerc)
                                     {
-                                        if (it.Percentage > bestItemPerc) bestItemPerc = it.Percentage;
-                                    }
-                                    else if (!string.IsNullOrEmpty(item.ItemName) && string.Equals(item.ItemName, it.Name, StringComparison.OrdinalIgnoreCase))
-                                    {
-                                        if (it.Percentage > bestItemPerc) bestItemPerc = it.Percentage;
+                                        bestItemPerc = it.Percentage;
+                                        bestItemOutdated = it.Outdated;
                                     }
                                 }
                             }
@@ -215,6 +215,7 @@ namespace FairLoot.Controllers
                         CharacterName = ch.Name,
                         Class = ch.Class,
                         ItemPercentage = bestItemPerc,
+                        ItemPercentageOutdated = bestItemPerc > 0 && bestItemOutdated,
                         OverallScore = overall,
                         LootReceivedCount = lootCount,
                         LastLootDate = lastLoot,

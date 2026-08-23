@@ -13,7 +13,7 @@ import marchImg from '../assets/marchonqueldanas.jpg'
 import './Loot.scss'
 
 type Item = { id?: number | null; name: string; icon?: string }
-type Candidate = { characterName: string; class?: string; itemPercentage: number; overallScore: number; lootReceivedCount: number; lastLootDate?: string; priority: number }
+type Candidate = { characterName: string; class?: string; itemPercentage: number; itemPercentageOutdated?: boolean; overallScore: number; lootReceivedCount: number; lastLootDate?: string; priority: number }
 type SuggestionMeta = { allZeroUpgrade?: boolean; singleUpgradeOnly?: boolean }
 
 function buildRaidMapFromSummary(s: any[]): Record<string, Record<string, Record<string, Item[]>>> {
@@ -588,6 +588,7 @@ export default function Loot() {
       const candidates: Candidate[] = []
       for (const ch of summary) {
         let bestPerc = 0
+        let bestOutdated = false
         if (ch.instances) {
           for (const inst of ch.instances) {
             if (!inst.difficulties) continue
@@ -600,7 +601,7 @@ export default function Loot() {
                 for (const it of e.items) {
                   const match = (unit.itemId != null && it.id != null && unit.itemId === it.id) ||
                     (unit.itemName && it.name && unit.itemName.toLowerCase() === it.name.toLowerCase())
-                  if (match && (it.percentage ?? 0) > bestPerc) bestPerc = it.percentage ?? 0
+                  if (match && (it.percentage ?? 0) > bestPerc) { bestPerc = it.percentage ?? 0; bestOutdated = !!it.outdated }
                 }
               }
             }
@@ -610,6 +611,7 @@ export default function Loot() {
           characterName: ch.name,
           class: ch.class,
           itemPercentage: bestPerc,
+          itemPercentageOutdated: bestPerc > 0 && bestOutdated,
           overallScore: 0,
           lootReceivedCount: lootCountByChar[ch.name] || 0,
           lastLootDate: lastLootByChar[ch.name] ? new Date(lastLootByChar[ch.name]).toISOString() : undefined,
@@ -669,7 +671,7 @@ export default function Loot() {
       const map: Record<number, Candidate[]> = {}
       const meta: Record<number, SuggestionMeta> = {}
       data.forEach((entry: any, idx: number) => {
-        map[idx] = (entry.candidates || []).map((c: any) => ({ characterName: c.characterName, class: c.class, itemPercentage: c.itemPercentage, overallScore: c.overallScore, lootReceivedCount: c.lootReceivedCount ?? 0, lastLootDate: c.lastLootDate, priority: c.priority ?? 0 }))
+        map[idx] = (entry.candidates || []).map((c: any) => ({ characterName: c.characterName, class: c.class, itemPercentage: c.itemPercentage, itemPercentageOutdated: c.itemPercentageOutdated ?? false, overallScore: c.overallScore, lootReceivedCount: c.lootReceivedCount ?? 0, lastLootDate: c.lastLootDate, priority: c.priority ?? 0 }))
         meta[idx] = { allZeroUpgrade: entry.allZeroUpgrade, singleUpgradeOnly: entry.singleUpgradeOnly }
       })
       setSuggestions(map)
@@ -1243,7 +1245,7 @@ export default function Loot() {
                             const minIlvl = difficulty === 'normal' ? (guild?.minIlevelNormal ?? 0) : difficulty === 'heroic' ? (guild?.minIlevelHeroic ?? 0) : difficulty === 'mythic' ? (guild?.minIlevelMythic ?? 0) : 0
                             const isBelowIlvl = minIlvl > 0 && charIlvl > 0 && charIlvl < minIlvl
                               return (
-                              <button key={c.characterName} className={"candidate-btn" + (isSelected ? ' selected' : '') + (isAssignedElsewhere ? ' assigned-elsewhere' : '')} onClick={() => assignToIndex(idx, c.characterName)} title={`Upgrade: ${Number(c.itemPercentage).toFixed(2)}% | Score: ${Number(c.overallScore).toFixed(2)} | Itens recebidos (30d): ${c.lootReceivedCount} | Priority: ${Number(c.priority).toFixed(4)}${charIlvl > 0 ? ` | iLvl: ${charIlvl}` : ''}${isBelowIlvl ? ` ⚠ min ${minIlvl}` : ''}${isAssignedElsewhere ? ' | Selecionado em outro item' : ''}`}>
+                              <button key={c.characterName} className={"candidate-btn" + (isSelected ? ' selected' : '') + (isAssignedElsewhere ? ' assigned-elsewhere' : '')} onClick={() => assignToIndex(idx, c.characterName)} title={`Upgrade: ${Number(c.itemPercentage).toFixed(2)}% | Score: ${Number(c.overallScore).toFixed(2)} | Itens recebidos (30d): ${c.lootReceivedCount} | Priority: ${Number(c.priority).toFixed(4)}${charIlvl > 0 ? ` | iLvl: ${charIlvl}` : ''}${isBelowIlvl ? ` ⚠ min ${minIlvl}` : ''}${c.itemPercentageOutdated ? ' | ⚠ SimC desatualizado — gear mudou desde o último upload' : ''}${isAssignedElsewhere ? ' | Selecionado em outro item' : ''}`}>
                                 {isAssignedElsewhere && (<span className="badge badge-assigned">Já selecionado</span>)}
                                 <span className="candidate-name">
                                   {classIcon && <img src={classIcon} alt="" className="candidate-class-icon" />}
@@ -1253,6 +1255,7 @@ export default function Loot() {
                                 </span>
                                 <span className="candidate-meta">
                                   <span className="badge badge-upgrade" style={{ color: upgrColor }}>⬆{Number(c.itemPercentage).toFixed(2)}%</span>
+                                  {c.itemPercentageOutdated && <span className="badge badge-simc-warn" title="SimC desatualizado — o gear equipado mudou desde o último upload, essa % pode não refletir a realidade">🕒⚠️</span>}
                                   <span className="badge badge-priority" style={{ color: prioColor }}>P:{Math.round(c.priority * 100)}</span>
                                 </span>
                               </button>

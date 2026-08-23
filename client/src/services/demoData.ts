@@ -80,6 +80,7 @@ export const getDemoWishlistSummary = (): any[] => {
                 percentage: wish ? (wish.percentage || 0) : 0,
                 absolute: wish ? (wish.absolute || 0) : 0,
                 specialization: wish ? (wish.specialization || null) : null,
+                outdated: !!(wish && wish.outdated && wish.outdated.old && wish.outdated.new),
               }
             }),
           })),
