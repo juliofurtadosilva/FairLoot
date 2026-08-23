@@ -54,7 +54,9 @@ client.on(Events.InteractionCreate, async interaction => {
         discordUsername: interaction.user.username,
       }),
     });
-    const data = await res.json().catch(() => null);
+    const rawBody = await res.text();
+    let data = null;
+    try { data = JSON.parse(rawBody); } catch { /* not JSON — handled below */ }
 
     if (data?.success) {
       const bits = [`✅ Enviado para **${data.characterName}**`];
@@ -63,12 +65,21 @@ client.on(Events.InteractionCreate, async interaction => {
       if (data.spec) bits.push(`· ${data.spec}`);
       if (data.source) bits.push(`· via ${data.source}`);
       await interaction.editReply(bits.join(' '));
+    } else if (data?.error) {
+      await interaction.editReply(`❌ ${data.error}`);
     } else {
-      await interaction.editReply(`❌ ${data?.error || 'Erro desconhecido ao enviar o relatório.'}`);
+      // Backend didn't return the JSON shape we expect (cold-start proxy error page, timeout, etc.)
+      // — log the raw response for debugging and surface the HTTP status so it's not a dead end.
+      console.error(`Resposta inesperada do FairLoot (HTTP ${res.status}):`, rawBody.slice(0, 500));
+      const snippet = rawBody.trim().slice(0, 200);
+      await interaction.editReply(
+        `❌ Erro inesperado do FairLoot (HTTP ${res.status}). Tenta de novo em 1 minuto — se persistir, avisa o Admin.` +
+        (snippet ? `\n\`\`\`${snippet}\`\`\`` : '')
+      );
     }
   } catch (err) {
     console.error('Erro ao chamar o FairLoot:', err);
-    await interaction.editReply('❌ Não consegui contatar o FairLoot. Tenta de novo em um minuto.');
+    await interaction.editReply(`❌ Não consegui contatar o FairLoot (${err.message}). Tenta de novo em um minuto.`);
   }
 });
 
