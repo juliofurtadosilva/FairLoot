@@ -18,5 +18,7 @@ namespace FairLoot.Domain
         public DateTime? RevertedAt { get; set; }
         // true when the admin manually assigned this item outside the suggestion algorithm — no score impact.
         public bool IsManualAssignment { get; set; } = false;
+        // true when a normal (non-manual) suggestion pick was given without counting toward score.
+        public bool NoScore { get; set; } = false;
     }
 }

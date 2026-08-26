@@ -17,20 +17,22 @@
 }
 
 .loot-panel--container {
-  max-height: none;
-  overflow: visible;
-  padding-bottom: 32px;
+  align-self: stretch;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  padding-bottom: 12px;
+  box-sizing: border-box;
 }
 
-/* min-height gives the layout room so .actions-row (sticky) can actually sit near the bottom
-   of the screen instead of right after a short amount of content, near the top. */
 .loot-root {
   width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 20px;
-  min-height: 85vh;
+  gap: 10px;
+  height: 100%;
+  min-height: 0;
 }
 
 .loot-section {
@@ -38,17 +40,34 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
-/* the last section before .actions-row absorbs the leftover height, pushing the button row down */
+/* absorbs the leftover vertical space so .loot-next-row sits near the bottom when there's
+   little content, without forcing a scrollbar when everything already fits. */
 .loot-section--fill {
-  flex: 1;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.items-grid {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
 }
 
 .loot-section + .loot-section {
-  padding-top: 20px;
+  padding-top: 10px;
   border-top: 1px solid var(--border);
+}
+
+.loot-next-row {
+  width: 100%;
+  flex-shrink: 0;
+  display: flex;
+  justify-content: flex-end;
 }
 
 .loot-section-label {
@@ -139,7 +158,7 @@
 .raid-item { cursor: pointer }
 .raid-thumb { position: relative }
 
-.item-card { user-select: none; -webkit-user-select: none; -moz-user-select: none; cursor: pointer; padding: 8px; border-radius: 4px; border: 1px solid var(--border); display:flex; align-items:center; gap:8px; flex: 0 0 220px; max-width:220px; min-height:56px; box-sizing:border-box }
+.item-card { user-select: none; -webkit-user-select: none; -moz-user-select: none; cursor: pointer; padding: 8px; border-radius: 4px; border: 1px solid var(--border); display:flex; align-items:center; gap:8px; width:100%; height:56px; min-width:0; box-sizing:border-box }
 .item-card.selected { border: 2px solid var(--accent) }
 .item-icon { width:36px; height:36px; }
 .item-icon.placeholder { width:36px; height:36px; background:var(--panel-bg); border-radius: 4px }
@@ -155,13 +174,13 @@
 .available-section { width:100%; display:flex; flex-direction:column; align-items:center; gap:10px }
 .available-title { font-size:15px }
 .muted { color: var(--muted) }
-.items-grid { display:flex; gap:8px; flex-wrap:wrap; justify-content:center }
 
 /* Sticky footer — always reachable without scrolling, and visibly disabled until an item is picked */
 .actions-row {
   position: sticky;
   bottom: 0;
   left: 0;
+  flex-shrink: 0;
   padding: 14px 0;
   margin-top: 8px;
   display: flex;
@@ -171,7 +190,8 @@
   background: linear-gradient(180deg, transparent, var(--card) 35%);
   z-index: 5;
 }
-.actions-row .primary {
+.actions-row .primary,
+.loot-next-row .primary {
   padding: 10px 32px;
   font-size: 15px;
   font-weight: 600;
@@ -180,7 +200,8 @@
   background: rgba(var(--accent-rgb),0.12);
   transition: opacity 0.15s, background 0.15s;
 }
-.actions-row .primary:disabled {
+.actions-row .primary:disabled,
+.loot-next-row .primary:disabled {
   opacity: 0.4;
   cursor: not-allowed;
   background: var(--surface);
@@ -230,16 +251,40 @@
 
 .allow-dup-toggle {
   width: 18px; height: 18px; flex-shrink: 0;
-  display: block;
+  display: flex; align-items: center; justify-content: center;
   border-radius: 4px; border: 2px solid var(--border);
   background: transparent; cursor: pointer;
-  padding: 0; 
+  padding: 0;
+  font-size: 9px; font-weight: 700; line-height: 1;
+  color: var(--muted);
   transition: all 0.15s;
   &.active {
     border-color: rgba(168, 130, 255, 0.8);
     background: rgba(168, 130, 255, 0.45);
+    color: var(--text);
   }
   &:hover { border-color: rgba(168, 130, 255, 0.6); }
+}
+
+.no-score-toggle {
+  width: 18px; height: 18px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 4px; border: 2px solid var(--border);
+  background: transparent; cursor: pointer;
+  padding: 0;
+  font-size: 9px; font-weight: 700; line-height: 1;
+  transition: all 0.15s;
+  &.on {
+    border-color: rgba(16, 185, 129, 0.8);
+    background: rgba(16, 185, 129, 0.25);
+    color: #10b981;
+  }
+  &.off {
+    border-color: var(--color-noscore);
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--color-noscore);
+  }
+  &:hover { filter: brightness(1.15); }
 }
 .suggestion-body { display:flex; flex-direction:column; gap:5px; flex:1 }
 .candidates-list { display:flex; flex-direction:column; gap:4px }

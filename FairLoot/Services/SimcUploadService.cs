@@ -48,15 +48,39 @@ namespace FairLoot.Services
                 if (!success)
                 {
                     string wowauditError = body;
+                    var friendlyMessage = false;
                     try
                     {
                         using var doc = JsonDocument.Parse(body);
                         if (doc.RootElement.TryGetProperty("error", out var errProp) && errProp.ValueKind == JsonValueKind.String)
+                        {
                             wowauditError = errProp.GetString() ?? body;
+                        }
+                        else if (doc.RootElement.TryGetProperty("base", out var baseProp) && baseProp.ValueKind == JsonValueKind.Array)
+                        {
+                            var baseMessages = baseProp.EnumerateArray()
+                                .Where(e => e.ValueKind == JsonValueKind.String)
+                                .Select(e => e.GetString() ?? string.Empty)
+                                .ToList();
+
+                            // wowaudit couldn't match the report against a known droptimizer configuration —
+                            // almost always means the Raidbots sim itself was run with the wrong settings,
+                            // not a bug on our end. Give the user the exact checklist instead of raw JSON.
+                            if (baseMessages.Any(m => m.Contains("Couldn't find a matching droptimizer configuration", StringComparison.OrdinalIgnoreCase)))
+                            {
+                                wowauditError = "Simulação errada — refaça o Droptimizer com: apenas Patchwerk, 5 minutos, sem báu semanal, sem sockets, sem PI, 1 boss, 6/6 upgrades.";
+                                friendlyMessage = true;
+                            }
+                            else if (baseMessages.Count > 0)
+                            {
+                                wowauditError = string.Join(" ", baseMessages);
+                            }
+                        }
                     }
                     catch (JsonException) { /* keep raw body */ }
 
-                    result = new SubmitReportResultDto { Success = false, Error = $"Wowaudit recusou o envio: {wowauditError}", CharacterName = detected.CharacterName, Difficulty = detected.Difficulty };
+                    var errorText = friendlyMessage ? wowauditError : $"Wowaudit recusou o envio: {wowauditError}";
+                    result = new SubmitReportResultDto { Success = false, Error = errorText, CharacterName = detected.CharacterName, Difficulty = detected.Difficulty };
                 }
                 else
                 {

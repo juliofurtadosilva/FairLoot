@@ -94,5 +94,7 @@ namespace FairLoot.DTOs
         public bool IsSingleUpgrade { get; set; }
         // manual assignment outside the suggestion algorithm — always award 0, no score impact.
         public bool IsManualAssignment { get; set; }
+        // quick "give without scoring" toggle on an otherwise-normal (non-manual) suggestion pick.
+        public bool NoScore { get; set; }
     }
 }

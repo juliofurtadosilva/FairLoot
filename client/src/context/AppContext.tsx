@@ -142,6 +142,8 @@ const translations = {
   'loot.notePlaceholder': { pt: 'Ex: trade com fulano, item off-spec...', en: 'E.g.: trade with someone, off-spec item...' },
   'loot.dupOn': { pt: 'Permitindo repetir jogador (clique para desativar)', en: 'Allowing duplicate player (click to disable)' },
   'loot.dupOff': { pt: 'Clique para permitir repetir jogador neste item', en: 'Click to allow duplicate player for this item' },
+  'loot.scoreOn': { pt: 'Contando score (clique para dar sem pontuar)', en: 'Counting score (click to give without scoring)' },
+  'loot.scoreOff': { pt: 'Não vai pontuar — clique para voltar a contar score', en: 'Won\'t score — click to count score again' },
   'loot.manualAssign': { pt: 'Atribuir manualmente', en: 'Manually assign' },
   'loot.manualAssignNone': { pt: '-- ninguém --', en: '-- nobody --' },
   'loot.manualAssignBadge': { pt: 'MANUAL · SEM PONTOS', en: 'MANUAL · NO SCORE' },
@@ -299,6 +301,7 @@ const translations = {
   },
   'history.formulaTitle': { pt: 'Como a prioridade é calculada', en: 'How priority is calculated' },
   'history.manualAssignment': { pt: 'Manual (sem pontos)', en: 'Manual (no score)' },
+  'history.noScoreAssignment': { pt: 'Sem pontos', en: 'No score' },
 } as const
 
 export type TranslationKey = keyof typeof translations

@@ -142,6 +142,9 @@ export default function Loot() {
   const [noteOpenIdx, setNoteOpenIdx] = useState<number | null>(null)
   const [itemNameMap, setItemNameMap] = useState<Record<number, string>>({})
   const [allowDuplicateItems, setAllowDuplicateItems] = useState<Set<number>>(new Set())
+  // quick "don't count this pick toward score" toggle for normal (non-manual) suggestion picks —
+  // on by default (scores normally); clicking turns scoring off without switching to manual mode.
+  const [noScoreItems, setNoScoreItems] = useState<Set<number>>(new Set())
   // manual assignment: admin picks a roster member outside the suggestion algorithm (used when that
   // person doesn't show up in the suggestion candidates, e.g. item isn't on their wishlist). Never
   // reserves/blocks other item slots. Scoring is controlled per-item by manualScoreMode below.
@@ -855,6 +858,8 @@ export default function Loot() {
         isSingleUpgrade: !!suggestionMeta[idx]?.singleUpgradeOnly,
         // 'score' mode counts like a normal pick (no manual flag → backend awards it); 'noscore'/'transmog' never score.
         isManualAssignment: isManual && mode !== 'score',
+        // quick no-score toggle on an otherwise-normal pick (not manual mode)
+        noScore: !isManual && noScoreItems.has(idx),
       }
     })
     try {
@@ -865,10 +870,11 @@ export default function Loot() {
           assignedTo: a.assignedTo,
           boss: a.boss,
           difficulty: a.difficulty,
-          // award depends on difficulty (normal=0.5, heroic=1.0, mythic=1.5); manual assignments never score
-          awardValue: (!a.assignedTo || a.isSingleUpgrade || a.isManualAssignment) ? 0 : (a.difficulty === 'normal' ? 0.5 : a.difficulty === 'mythic' ? 1.5 : 1.0),
+          // award depends on difficulty (normal=0.5, heroic=1.0, mythic=1.5); manual/no-score picks never score
+          awardValue: (!a.assignedTo || a.isSingleUpgrade || a.isManualAssignment || a.noScore) ? 0 : (a.difficulty === 'normal' ? 0.5 : a.difficulty === 'mythic' ? 1.5 : 1.0),
           note: a.note || '',
           isManualAssignment: a.isManualAssignment,
+          noScore: a.noScore,
           createdAt: new Date().toISOString(),
         }))
         addDemoLootHistory(drops)
@@ -886,6 +892,7 @@ export default function Loot() {
       setNoteOpenIdx(null)
       setManualAssignItems(new Set())
       setManualScoreMode({})
+      setNoScoreItems(new Set())
       setStep(1)
     } catch (e) {
       console.error(e)
@@ -900,6 +907,7 @@ export default function Loot() {
     setManualAssignItems(new Set())
     setManualScoreMode({})
     setAllowDuplicateItems(new Set())
+    setNoScoreItems(new Set())
     setReservedMap({})
     setItemNotes({})
     setNoteOpenIdx(null)
@@ -1094,10 +1102,10 @@ export default function Loot() {
 
             <div className="loot-section loot-section--fill">
               <div className="loot-section-label">{t('loot.available')}</div>
-              <div>
+              <div style={{ width: '100%' }}>
                 {availableItems.length === 0 && <div style={{ color: 'var(--muted)' }}>{!raid || !boss ? t('loot.selectRaidBoss') : t('loot.noItems')}</div>}
                 {/* raw wishlist debug removed */}
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+                <div className="items-grid">
                   {availableItems.map((it, i) => {
                     const sel = selectedItems.find(si => si.name === it.name && si.id === it.id)
                       return (
@@ -1113,8 +1121,7 @@ export default function Loot() {
                 </div>
               </div>
             </div>
-
-            <div className="actions-row">
+            <div className="loot-next-row">
               <button className="primary" onClick={() => goSuggest()} disabled={selectedItems.length === 0 || !boss || !difficulty || loading}>{t('loot.next')}</button>
             </div>
           </div>
@@ -1161,6 +1168,7 @@ export default function Loot() {
                 const topCandidates = sortedUpgrades.slice(0, 5)
                 const { isTransmog } = getTransmogStatus(idx)
                 const isAllowDup = allowDuplicateItems.has(idx)
+                const isNoScore = noScoreItems.has(idx)
                 const isManual = manualAssignItems.has(idx)
                 const manualMode = manualScoreMode[idx] || 'noscore'
                 return (
@@ -1211,7 +1219,19 @@ export default function Loot() {
                             }
                           }
                         }}
-                      />
+                      >D</button>
+                      <button
+                        className={"no-score-toggle" + (isNoScore ? ' off' : ' on')}
+                        title={isNoScore ? t('loot.scoreOff') : t('loot.scoreOn')}
+                        onClick={e => {
+                          e.stopPropagation()
+                          setNoScoreItems(prev => {
+                            const next = new Set(prev)
+                            if (next.has(idx)) next.delete(idx); else next.add(idx)
+                            return next
+                          })
+                        }}
+                      >S</button>
                     </div>
                     {isManual && (
                       <div style={{ textAlign: 'center', padding: '4px 0' }}>

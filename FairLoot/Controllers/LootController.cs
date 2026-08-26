@@ -298,9 +298,10 @@ namespace FairLoot.Controllers
                 // transmog items (empty AssignedTo) get award 0
                 // single upgrade items (only 1 candidate wanted) get award 0 (no competition)
                 var isTransmog = string.IsNullOrEmpty(alloc.AssignedTo);
+                var noScore = alloc.IsManualAssignment || alloc.NoScore;
                 // award depends on difficulty: normal=0.5, heroic=1.0, mythic=1.5
                 double award = 0;
-                if (!isTransmog && !alloc.IsSingleUpgrade && !alloc.IsManualAssignment)
+                if (!isTransmog && !alloc.IsSingleUpgrade && !noScore)
                 {
                     award = AwardForDifficulty(alloc.Difficulty);
                 }
@@ -316,14 +317,15 @@ namespace FairLoot.Controllers
                     CreatedAt = DateTime.UtcNow,
                     AwardValue = award,
                     Note = alloc.Note,
-                    IsManualAssignment = alloc.IsManualAssignment
+                    IsManualAssignment = alloc.IsManualAssignment,
+                    NoScore = alloc.NoScore
                 };
 
                 drops.Add(drop);
                 _context.LootDrops.Add(drop);
 
-                // update character score in DB (add award) — manual assignments never touch score
-                if (!isTransmog && !alloc.IsManualAssignment && !string.IsNullOrEmpty(alloc.AssignedTo))
+                // update character score in DB (add award) — manual/no-score picks never touch score
+                if (!isTransmog && !noScore && !string.IsNullOrEmpty(alloc.AssignedTo))
                 {
                     if (dbChars.TryGetValue(alloc.AssignedTo, out var chDb))
                     {

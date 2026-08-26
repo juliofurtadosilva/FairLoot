@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import api from '../services/api'
 import { useApp } from '../context/AppContext'
 import { isDemoMode } from '../services/demoData'
@@ -52,6 +52,29 @@ export default function ReportUpload() {
   const [sending, setSending] = useState(false)
   const [lastResult, setLastResult] = useState<SubmitResult | null>(null)
   const [log, setLog] = useState<LogEntry[]>([])
+  // how many rows fit in one column's actual available height — measured, not guessed, so the
+  // left column always fills first (like a newspaper column) instead of a blind 50/50 split.
+  const [rowsPerCol, setRowsPerCol] = useState(Infinity)
+  const columnsRef = useRef<HTMLDivElement>(null)
+  const firstRowRef = useRef<HTMLDivElement>(null)
+
+  useLayoutEffect(() => {
+    if (!columnsRef.current || !firstRowRef.current || log.length === 0) return
+    const containerHeight = columnsRef.current.clientHeight
+    const rowHeight = firstRowRef.current.getBoundingClientRect().height
+    if (rowHeight > 0) setRowsPerCol(Math.max(1, Math.floor(containerHeight / rowHeight)))
+  }, [log])
+
+  useEffect(() => {
+    const onResize = () => {
+      if (!columnsRef.current || !firstRowRef.current) return
+      const containerHeight = columnsRef.current.clientHeight
+      const rowHeight = firstRowRef.current.getBoundingClientRect().height
+      if (rowHeight > 0) setRowsPerCol(Math.max(1, Math.floor(containerHeight / rowHeight)))
+    }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
 
   const fetchLog = async () => {
     if (isDemoMode()) return
@@ -92,23 +115,17 @@ export default function ReportUpload() {
   const formatDate = (iso: string) =>
     new Date(iso).toLocaleString(lang === 'pt' ? 'pt-BR' : 'en-US', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
 
-  const renderLogTable = (entries: LogEntry[]) => (
-    <table className="report-upload-log-table">
-      <tbody>
-        {entries.map(entry => (
-          <tr key={entry.id} className={entry.success ? '' : 'report-upload-log-row--error'}>
-            <td className="report-upload-log-date">{formatDate(entry.createdAt)}</td>
-            <td>{entry.success ? '✓' : '✗'}</td>
-            <td className="report-upload-log-diff" style={{ color: diffColor(entry.difficulty) }} title={entry.difficulty || undefined}>
-              {diffLetter(entry.difficulty)}
-            </td>
-            <td>{entry.characterName || '—'}</td>
-            <td className="report-upload-muted">{entry.spec}</td>
-            <td className="report-upload-muted">{t('reports.historyBy')} {entry.submittedBy}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+  const renderLogRow = (entry: LogEntry, isFirst: boolean) => (
+    <div key={entry.id} ref={isFirst ? firstRowRef : undefined} className={"report-upload-log-row" + (entry.success ? '' : ' report-upload-log-row--error')}>
+      <span className="report-upload-log-date">{formatDate(entry.createdAt)}</span>
+      <span>{entry.success ? '✓' : '✗'}</span>
+      <span className="report-upload-log-diff" style={{ color: diffColor(entry.difficulty) }} title={entry.difficulty || undefined}>
+        {diffLetter(entry.difficulty)}
+      </span>
+      <span>{entry.characterName || '—'}</span>
+      <span className="report-upload-muted">{entry.spec}</span>
+      <span className="report-upload-muted">{t('reports.historyBy')} {entry.submittedBy}</span>
+    </div>
   )
 
   return (
@@ -161,9 +178,13 @@ export default function ReportUpload() {
           {log.length === 0 ? (
             <div className="report-upload-log-empty">{t('reports.historyEmpty')}</div>
           ) : (
-            <div className="report-upload-log-columns">
-              {renderLogTable(log.filter((_, i) => i % 2 === 0))}
-              {renderLogTable(log.filter((_, i) => i % 2 === 1))}
+            <div className="report-upload-log-columns" ref={columnsRef}>
+              <div className="report-upload-log-col">
+                {log.slice(0, rowsPerCol).map((e, i) => renderLogRow(e, i === 0))}
+              </div>
+              <div className="report-upload-log-col">
+                {log.slice(rowsPerCol).map(e => renderLogRow(e, false))}
+              </div>
             </div>
           )}
         </div>

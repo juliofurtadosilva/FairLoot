@@ -23,6 +23,7 @@ type LootDrop = {
   isReverted?: boolean
   revertedAt?: string
   isManualAssignment?: boolean
+  noScore?: boolean
 }
 
 type Candidate = {
@@ -600,7 +601,7 @@ export default function LootHistory() {
                           `${d.itemName}`,
                           `${t('loot.difficulty')}: ${d.difficulty}`,
                           d.assignedTo ? `${t('history.to')} ${d.assignedTo}` : t('history.transmog'),
-                          d.isManualAssignment ? t('history.manualAssignment') : (d.awardValue ? `${t('history.value')} +${Number(d.awardValue).toFixed(1)} pts` : null),
+                          d.isManualAssignment ? t('history.manualAssignment') : (d.noScore ? t('history.noScoreAssignment') : (d.awardValue ? `${t('history.value')} +${Number(d.awardValue).toFixed(1)} pts` : null)),
                           d.note ? `${t('history.note')} ${d.note}` : null,
                           `${t('history.at')} ${formatDate(d.createdAt)}`,
                           reverted ? `↩ ${t('history.reverted')} ${d.revertedAt ? formatDate(d.revertedAt) : ''}` : null,
@@ -643,6 +644,8 @@ export default function LootHistory() {
                                 <span className="lh-assigned-name">{d.assignedTo}</span>
                                 {d.isManualAssignment ? (
                                   <span className="lh-assigned-manual">{t('history.manualAssignment')}</span>
+                                ) : d.noScore ? (
+                                  <span className="lh-assigned-manual">{t('history.noScoreAssignment')}</span>
                                 ) : (
                                   <span className="lh-assigned-score">+{Number(d.awardValue).toFixed(1)} pts</span>
                                 )}

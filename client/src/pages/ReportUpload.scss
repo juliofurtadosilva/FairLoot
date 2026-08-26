@@ -2,6 +2,12 @@
   display: flex;
   flex-direction: column;
   gap: 18px;
+  height: 100%;
+  min-height: 0;
+}
+
+.report-upload-card > * {
+  flex-shrink: 0;
 }
 
 .report-upload-desc {
@@ -57,6 +63,9 @@
   border-radius: 4px;
   padding: 10px 14px;
   width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  box-sizing: border-box;
 }
 
 .report-upload-log-header {
@@ -65,6 +74,7 @@
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  flex-shrink: 0;
 }
 
 .report-upload-log-empty {
@@ -72,12 +82,24 @@
   color: var(--muted);
 }
 
+/* the left column's row count is computed in JS from the real available height (see
+   ReportUpload.tsx) so it fills first — like a newspaper column — before the right one
+   gets anything. Plain grid + overflow-y here (not CSS multicol) because multicol silently
+   grows extra columns sideways instead of scrolling once content overflows two columns. */
 .report-upload-log-columns {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  align-content: start;
   gap: 0 16px;
-  max-height: 320px;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
+}
+
+.report-upload-log-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 
 @media (max-width: 900px) {
@@ -86,21 +108,18 @@
   }
 }
 
-.report-upload-log-table {
-  width: 100%;
-  height: fit-content;
-  border-collapse: collapse;
-  font-size: 11px;
-}
-
-.report-upload-log-table td {
+.report-upload-log-row {
+  display: grid;
+  grid-template-columns: auto auto auto auto auto 1fr;
+  align-items: center;
+  gap: 0 8px;
   padding: 4px 8px;
   border-bottom: 1px solid var(--border);
+  font-size: 11px;
   white-space: nowrap;
 }
 
-.report-upload-log-table td:last-child {
-  width: 100%;
+.report-upload-log-row > span:last-child {
   white-space: normal;
 }
 
@@ -114,7 +133,7 @@
   text-align: center;
 }
 
-.report-upload-log-row--error td:nth-child(2) {
+.report-upload-log-row--error span:nth-child(2) {
   color: #ef4444;
 }
 
