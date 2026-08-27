@@ -6,6 +6,12 @@ namespace FairLoot.DTOs
         public string? Server { get; set; }
         public string? WowauditApiKey { get; set; }
         public string? DiscordServerId { get; set; }
+        public bool? DiscordDigestEnabled { get; set; }
+        public string? DiscordDigestChannelId { get; set; }
+        public string? DiscordDigestRoleId { get; set; }
+        public string? DiscordDigestDifficulties { get; set; }
+        public string? DiscordDigestTime { get; set; }
+        public string? DiscordDigestTimezone { get; set; }
         public double? PriorityAlpha { get; set; }
         public double? PriorityBeta { get; set; }
         public double? PriorityGamma { get; set; }

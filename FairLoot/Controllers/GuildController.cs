@@ -247,6 +247,23 @@ namespace FairLoot.Controllers
             return Ok(entries);
         }
 
+        // POST api/guild/discord-digest/trigger-now
+        // Flags this guild's digest to fire on the bot's next check (within ~1 minute) instead of
+        // waiting for the scheduled time. The bot clears the flag itself once it has actually posted.
+        [HttpPost("discord-digest/trigger-now")]
+        public async Task<IActionResult> TriggerDiscordDigestNow()
+        {
+            var (user, error) = await GetAuthenticatedAdminAsync(_context);
+            if (error != null) return error;
+
+            if (string.IsNullOrEmpty(user!.Guild!.DiscordServerId) || string.IsNullOrEmpty(user.Guild.DiscordDigestChannelId))
+                return BadRequest("Configure o Discord Server ID e o ID do canal antes de disparar.");
+
+            user.Guild.DiscordDigestPendingManualTrigger = true;
+            await _context.SaveChangesAsync();
+            return NoContent();
+        }
+
         // PUT api/guild
         [HttpPut]
         public async Task<IActionResult> UpdateGuild([FromBody] FairLoot.DTOs.GuildUpdateDto updatedGuild)
@@ -258,6 +275,14 @@ namespace FairLoot.Controllers
             if (!string.IsNullOrEmpty(updatedGuild.Server)) user!.Guild!.Server = updatedGuild.Server;
             if (updatedGuild.WowauditApiKey != null) user!.Guild!.WowauditApiKey = updatedGuild.WowauditApiKey;
             if (updatedGuild.DiscordServerId != null) user!.Guild!.DiscordServerId = updatedGuild.DiscordServerId;
+            if (updatedGuild.DiscordDigestEnabled.HasValue) user!.Guild!.DiscordDigestEnabled = updatedGuild.DiscordDigestEnabled.Value;
+            if (updatedGuild.DiscordDigestChannelId != null) user!.Guild!.DiscordDigestChannelId = updatedGuild.DiscordDigestChannelId;
+            if (updatedGuild.DiscordDigestRoleId != null) user!.Guild!.DiscordDigestRoleId = updatedGuild.DiscordDigestRoleId;
+            if (!string.IsNullOrEmpty(updatedGuild.DiscordDigestDifficulties)) user!.Guild!.DiscordDigestDifficulties = updatedGuild.DiscordDigestDifficulties;
+            if (!string.IsNullOrEmpty(updatedGuild.DiscordDigestTime) && System.Text.RegularExpressions.Regex.IsMatch(updatedGuild.DiscordDigestTime, @"^([01]\d|2[0-3]):[0-5]\d$"))
+                user!.Guild!.DiscordDigestTime = updatedGuild.DiscordDigestTime;
+            if (!string.IsNullOrEmpty(updatedGuild.DiscordDigestTimezone) && IsValidTimeZone(updatedGuild.DiscordDigestTimezone))
+                user!.Guild!.DiscordDigestTimezone = updatedGuild.DiscordDigestTimezone;
             if (updatedGuild.PriorityAlpha.HasValue && updatedGuild.PriorityAlpha.Value >= 0 && updatedGuild.PriorityAlpha.Value <= 1)
                 user!.Guild!.PriorityAlpha = updatedGuild.PriorityAlpha.Value;
             if (updatedGuild.PriorityBeta.HasValue && updatedGuild.PriorityBeta.Value >= 0 && updatedGuild.PriorityBeta.Value <= 1)
@@ -420,6 +445,12 @@ namespace FairLoot.Controllers
             _context.Guilds.Remove(user!.Guild!);
             await _context.SaveChangesAsync();
             return NoContent();
+        }
+
+        private static bool IsValidTimeZone(string tz)
+        {
+            try { TimeZoneInfo.FindSystemTimeZoneById(tz); return true; }
+            catch { return false; }
         }
     }
 }

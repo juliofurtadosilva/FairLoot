@@ -110,6 +110,18 @@ export default function AdminPanel() {
     } finally { setLoading(false) }
   }
 
+  const [triggeringDigest, setTriggeringDigest] = useState(false)
+  const triggerDigestNow = async () => {
+    if (isDemoMode()) { showToast(t('admin.discordDigestTriggered')); return }
+    try {
+      setTriggeringDigest(true)
+      await api.post('/api/guild/discord-digest/trigger-now')
+      showToast(t('admin.discordDigestTriggered'))
+    } catch (e) {
+      showAlert((e as any)?.response?.data || t('admin.saveError'))
+    } finally { setTriggeringDigest(false) }
+  }
+
   const sync = async () => {
     if (isDemoMode()) return
     try {
@@ -475,6 +487,92 @@ export default function AdminPanel() {
                   placeholder="123456789012345678"
                 />
                 <button onClick={save} disabled={loading} className="admin-btn">{t('admin.save')}</button>
+              </div>
+
+              <div className="admin-section-label" style={{ marginTop: 16 }}>{t('admin.discordDigest')}</div>
+              <div className="admin-formula-item">{t('admin.discordDigestDesc')}</div>
+              <div className="admin-field-row">
+                <label className="admin-label admin-checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={!!form.discordDigestEnabled}
+                    onChange={e => setForm({ ...form, discordDigestEnabled: e.target.checked })}
+                  />
+                  {t('admin.discordDigestEnabled')}
+                </label>
+              </div>
+              <div className="admin-field-row">
+                <label className="admin-label">{t('admin.discordDigestChannelId')}:</label>
+                <input
+                  value={form.discordDigestChannelId || ''}
+                  onChange={e => setForm({ ...form, discordDigestChannelId: e.target.value })}
+                  className="admin-input"
+                  placeholder="123456789012345678"
+                />
+              </div>
+              <div className="admin-field-row">
+                <label className="admin-label">{t('admin.discordDigestRoleId')}:</label>
+                <input
+                  value={form.discordDigestRoleId || ''}
+                  onChange={e => setForm({ ...form, discordDigestRoleId: e.target.value })}
+                  className="admin-input"
+                  placeholder="123456789012345678"
+                />
+              </div>
+              <div className="admin-field-row">
+                <label className="admin-label">{t('admin.discordDigestTime')}:</label>
+                <input
+                  type="time"
+                  value={form.discordDigestTime || '21:00'}
+                  onChange={e => setForm({
+                    ...form,
+                    discordDigestTime: e.target.value,
+                    // captured from this browser — a US admin setting "21:00" means their own 9pm,
+                    // not Brasília's, no matter where the FairLoot server itself runs.
+                    discordDigestTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                  })}
+                  className="admin-input"
+                  style={{ maxWidth: 120 }}
+                />
+                <span className="admin-formula-item" style={{ margin: 0 }}>
+                  {t('admin.discordDigestTimeHint')} ({form.discordDigestTimezone || Intl.DateTimeFormat().resolvedOptions().timeZone})
+                </span>
+              </div>
+              <div className="admin-field-row">
+                <label className="admin-label">{t('admin.discordDigestDifficulties')}:</label>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {['normal', 'heroic', 'mythic'].map(d => {
+                    const current = (form.discordDigestDifficulties || 'heroic,mythic').split(',').map((x: string) => x.trim()).filter(Boolean)
+                    const active = current.includes(d)
+                    const label = d === 'normal' ? 'N' : d === 'heroic' ? 'H' : 'M'
+                    const color = d === 'normal' ? 'var(--color-green)' : d === 'heroic' ? 'var(--color-heroic)' : 'var(--color-mythic)'
+                    return (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => {
+                          const next = active ? current.filter((x: string) => x !== d) : [...current, d]
+                          setForm({ ...form, discordDigestDifficulties: next.join(',') })
+                        }}
+                        style={{
+                          minWidth: 34, height: 30, borderRadius: 8, fontWeight: 700, cursor: 'pointer',
+                          border: active ? `1px solid ${color}` : '1px solid var(--border)',
+                          background: active ? 'rgba(255,255,255,0.03)' : 'transparent',
+                          color: active ? color : 'var(--muted)',
+                        }}
+                      >{label}</button>
+                    )
+                  })}
+                </div>
+                <button onClick={save} disabled={loading} className="admin-btn">{t('admin.save')}</button>
+              </div>
+              <div className="admin-field-row">
+                <button onClick={triggerDigestNow} disabled={triggeringDigest || !form.discordDigestEnabled} className="admin-btn admin-btn--accent">
+                  {triggeringDigest ? t('admin.discordDigestTriggering') : t('admin.discordDigestTriggerNow')}
+                </button>
+                {!form.discordDigestEnabled && (
+                  <span className="admin-formula-item" style={{ margin: 0 }}>{t('admin.discordDigestTriggerNeedsEnabled')}</span>
+                )}
               </div>
             </div>
 

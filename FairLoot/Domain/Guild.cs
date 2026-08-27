@@ -15,6 +15,20 @@
         // single, shared FairLoot Discord bot (see discord-bot/) knows which guild a /simc command came
         // from. Not a secret — Discord server IDs are effectively public.
         public string? DiscordServerId { get; set; }
+        // Daily "outdated SimC" digest posted by the Discord bot, once a day, in America/Sao_Paulo time.
+        public bool DiscordDigestEnabled { get; set; } = false;
+        public string? DiscordDigestChannelId { get; set; }
+        // role to @-mention in the digest message (not required — a channel-only post works too)
+        public string? DiscordDigestRoleId { get; set; }
+        // comma-separated subset of "normal,heroic,mythic" — which difficulties count as "outdated" for the digest
+        public string DiscordDigestDifficulties { get; set; } = "heroic,mythic";
+        // "HH:mm" (24h) — when the daily digest fires, interpreted in DiscordDigestTimezone
+        public string DiscordDigestTime { get; set; } = "21:00";
+        // IANA zone (e.g. "America/Sao_Paulo", "America/New_York") — captured from the browser of
+        // whoever last set the time, so a US guild's 9pm means their 9pm, not Brasília's.
+        public string DiscordDigestTimezone { get; set; } = "America/Sao_Paulo";
+        // set by the Admin panel's "send now" button; the bot clears it after posting the digest once
+        public bool DiscordDigestPendingManualTrigger { get; set; } = false;
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public List<User> Members { get; set; } = new List<User>();
         // characters synced from WowAudit

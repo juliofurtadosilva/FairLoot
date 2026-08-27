@@ -36,6 +36,13 @@
   flex-wrap:wrap;
 }
 
+.admin-checkbox-label{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  cursor:pointer;
+}
+
 .admin-label{
   font-size:12px;
   color:var(--muted);
@@ -480,6 +487,15 @@
   color:#ef4444;
   font-weight:700;
   &:hover{ background:rgba(239,68,68,0.2); }
+}
+
+.admin-btn--accent{
+  background:rgba(var(--accent-rgb),0.12);
+  border:1px solid rgba(var(--accent-rgb),0.4);
+  color:var(--accent);
+  font-weight:700;
+  &:hover{ background:rgba(var(--accent-rgb),0.22); }
+  &:disabled{ opacity:0.4; cursor:not-allowed; background:transparent; color:var(--muted); }
 }
 
 .admin-season-hint{

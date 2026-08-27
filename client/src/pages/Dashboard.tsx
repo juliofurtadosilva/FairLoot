@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react'
+import React, { useEffect, useState, useMemo, useRef } from 'react'
 import { useApp } from '../context/AppContext'
 import { isDemoMode, getOutdatedWarnings, getDemoLootHistory, getDemoCharacters } from '../services/demoData'
 import api from '../services/api'
@@ -72,6 +72,7 @@ export default function Dashboard() {
     return new Set<string>()
   })
   const [carouselIndex, setCarouselIndex] = useState(0)
+  const [pageSlide, setPageSlide] = useState(0)
   const [lootByPlayer, setLootByPlayer] = useState<{ name: string; count: number; manualCount: number; className?: string }[]>([])
   const [timeline, setTimeline] = useState<{ date: string; count: number }[]>([])
   const [seasonStart, setSeasonStart] = useState<string | null>(null)
@@ -314,9 +315,48 @@ export default function Dashboard() {
   const maxLoot = useMemo(() => Math.max(...displayedPlayers.map(p => p.count + p.manualCount), 1), [displayedPlayers])
   const hasManualAssignments = useMemo(() => displayedPlayers.some(p => p.manualCount > 0), [displayedPlayers])
 
+  const slideCount = 3
+  const goSlide = (i: number) => setPageSlide((i + slideCount) % slideCount)
+
+  // switching to a shorter slide shouldn't leave the view scrolled past its top (e.g. after
+  // scrolling down to reach the nav dots on a tall slide)
+  useEffect(() => {
+    document.querySelector('.container')?.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [pageSlide])
+
+  // the 3 slides have very different heights — without this, the carousel would always reserve
+  // the tallest slide's height, leaving a big empty gap (and the nav far away) on the shorter ones.
+  // ResizeObserver also catches height changes from async data (chart/outdated list loading in).
+  const slide1Ref = useRef<HTMLDivElement>(null)
+  const slide2Ref = useRef<HTMLDivElement>(null)
+  const slide3Ref = useRef<HTMLDivElement>(null)
+  const [trackHeight, setTrackHeight] = useState<number | undefined>(undefined)
+  useEffect(() => {
+    const el = [slide1Ref, slide2Ref, slide3Ref][pageSlide].current
+    if (!el) return
+    const update = () => setTrackHeight(el.scrollHeight)
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [pageSlide])
+
   return (
     <div className="tab-content">
       <div className="tab-card dash-card">
+        <div className="dash-page-nav">
+          {[t('dash.navDashboard'), t('dash.outdatedTitle'), t('dash.featTitle')].map((label, i) => (
+            <button key={i} className={`dash-page-tab ${i === pageSlide ? 'active' : ''}`} onClick={() => goSlide(i)}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <div className="dash-carousel" style={{ height: trackHeight }}>
+          <div className="dash-carousel-track" style={{ transform: `translateX(-${pageSlide * 100}%)` }}>
+
+          {/* ── Slide 1: welcome + loot chart ── */}
+          <div className="dash-carousel-slide" ref={slide1Ref}>
         <h2 className="dash-welcome">{t('dash.welcome')}</h2>
         <p className="dash-subtitle">{t('dash.subtitle')}</p>
 
@@ -388,7 +428,10 @@ export default function Dashboard() {
             )}
           </div>
         )}
+          </div>
 
+          {/* ── Slide 2: outdated SimC ── */}
+          <div className="dash-carousel-slide" ref={slide2Ref}>
         {/* Outdated SimC Warnings — first thing after welcome */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -435,8 +478,6 @@ export default function Dashboard() {
         </div>
         {outdated.length > 0 && (
           <div className="outdated-section">
-            <h3 className="outdated-title"><span aria-hidden="true">⚠️ </span>{t('dash.outdatedTitle')}</h3>
-            <p className="outdated-desc">{t('dash.outdatedDesc')}</p>
             <div className="outdated-grid">
               {outdated.map((w, i) => {
                 const daysAgo = w.lastOutdatedTs ? Math.max(1, Math.floor((Date.now() - w.lastOutdatedTs) / (1000*60*60*24))) : null
@@ -467,7 +508,10 @@ export default function Dashboard() {
             </div>
           </div>
         )}
+          </div>
 
+          {/* ── Slide 3: features + changelog ── */}
+          <div className="dash-carousel-slide" ref={slide3Ref}>
         {/* v1 Features */}
         <div className="dash-features-section">
           <h3 className="dash-features-title"><span aria-hidden="true">✨ </span>{t('dash.featTitle')}</h3>
@@ -506,6 +550,10 @@ export default function Dashboard() {
             {changelog.map((_, i) => (
               <button key={i} className={`dot ${i === carouselIndex ? 'active' : ''}`} onClick={() => setCarouselIndex(i)} />
             ))}
+          </div>
+        </div>
+          </div>
+
           </div>
         </div>
       </div>

@@ -46,6 +46,7 @@ const translations = {
 
   // dashboard
   'dash.welcome': { pt: 'Bem-vindo(a) ao FairLoot!', en: 'Welcome to FairLoot!' },
+  'dash.navDashboard': { pt: 'Dashboard', en: 'Dashboard' },
   'dash.subtitle': { pt: 'Sistema justo de distribuição de loot para sua guild.', en: 'Fair loot distribution system for your guild.' },
   'dash.featTitle': { pt: 'Funcionalidades — v1.0', en: 'Features — v1.0' },
   'dash.feat.loot': { pt: 'Controle de Loot', en: 'Loot Control' },
@@ -280,6 +281,21 @@ const translations = {
     en: 'Invite the FairLoot bot to your Discord server and paste the server ID here — that\'s how /simc knows which guild to send to. To get the ID: enable "Developer Mode" in Discord settings, right-click the server icon → Copy Server ID.',
   },
   'admin.discordServerId': { pt: 'Discord Server ID', en: 'Discord Server ID' },
+  'admin.discordDigest': { pt: 'Aviso diário de SimC desatualizado', en: 'Daily outdated-SimC digest' },
+  'admin.discordDigestDesc': {
+    pt: 'Todo dia, no horário escolhido, o bot posta no canal escolhido a lista de jogadores com SimC desatualizado (nas dificuldades marcadas abaixo). Clique com o botão direito no canal/cargo no Discord → Copiar ID.',
+    en: 'Every day, at the chosen time, the bot posts the list of players with outdated SimC (for the difficulties checked below) to the chosen channel. Right-click the channel/role in Discord → Copy ID.',
+  },
+  'admin.discordDigestEnabled': { pt: 'Ativar aviso diário', en: 'Enable daily digest' },
+  'admin.discordDigestChannelId': { pt: 'ID do canal', en: 'Channel ID' },
+  'admin.discordDigestRoleId': { pt: 'ID do cargo (opcional)', en: 'Role ID (optional)' },
+  'admin.discordDigestDifficulties': { pt: 'Dificuldades', en: 'Difficulties' },
+  'admin.discordDigestTime': { pt: 'Horário', en: 'Time' },
+  'admin.discordDigestTimeHint': { pt: 'seu fuso horário', en: 'your timezone' },
+  'admin.discordDigestTriggerNow': { pt: '📨 Disparar agora', en: '📨 Send now' },
+  'admin.discordDigestTriggering': { pt: 'Disparando...', en: 'Sending...' },
+  'admin.discordDigestTriggered': { pt: 'Disparo agendado — o bot posta em até 1 minuto.', en: 'Triggered — the bot will post within a minute.' },
+  'admin.discordDigestTriggerNeedsEnabled': { pt: 'Ative e salve antes de disparar', en: 'Enable and save before sending' },
 
   // dashboard chart
   'dash.chartTitle': { pt: 'Distribuição de loot — Season atual', en: 'Loot distribution — Current season' },

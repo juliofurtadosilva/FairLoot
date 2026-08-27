@@ -59,6 +59,62 @@
 /* simple carousel */
 .changelog-section { width:100%; text-align:left }
 .changelog-title { margin:0 0 12px; font-size:15px; font-weight:700; color:var(--accent); text-align:left }
+/* Page-level carousel: 3 slides (dashboard / outdated SimC / features+changelog) */
+.dash-carousel {
+  width: 100%;
+  overflow: hidden;
+  transition: height 0.3s ease;
+}
+.dash-carousel-track {
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  transition: transform 0.3s ease;
+}
+.dash-carousel-slide {
+  flex: 0 0 100%;
+  min-width: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+/* Top tab bar — full width, rectangular, pinned to the top of the view (sticks while the
+   page scrolls) instead of floating dots after the content. */
+.dash-page-nav {
+  position: sticky;
+  top: 0;
+  left: 0;
+  z-index: 5;
+  width: 100%;
+  display: flex;
+  margin-bottom: 16px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--card);
+}
+.dash-page-tab {
+  flex: 1 1 0;
+  padding: 12px 8px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  background: transparent;
+  border: none;
+  border-right: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+
+  &:last-child { border-right: none }
+  &:hover { background: rgba(var(--accent-rgb), 0.08); color: var(--text) }
+  &.active {
+    background: rgba(var(--accent-rgb), 0.16);
+    color: var(--accent);
+  }
+}
+
 .carousel { width:100%; display:flex; gap:8px; align-items:stretch }
 .carousel-item { padding:12px 18px; background:var(--surface); flex:1; text-align:left }
 .carousel-list { margin:0; padding-left:18px; display:flex; flex-direction:column; gap:4px; text-align:left; list-style:disc }

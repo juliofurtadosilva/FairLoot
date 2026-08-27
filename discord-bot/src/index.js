@@ -26,7 +26,78 @@ const DIFFICULTY_LABELS = { normal: 'Normal', heroic: 'Heroico', mythic: 'Mític
 
 client.once(Events.ClientReady, c => {
   console.log(`Bot online como ${c.user.tag}`);
+  startDailyDigestScheduler();
 });
+
+// Posts the "outdated SimC" digest once a day, at whatever time+timezone each guild configured in
+// the Admin panel (captured from that admin's own browser — a US guild's 9pm means their 9pm, not
+// wherever the bot process happens to run), to every Discord server the bot is actually in. Checked
+// once a minute — that tick only compares small in-memory numbers, it's not what would be expensive.
+// The one thing that actually costs anything (fetching wowaudit's wishlist) only runs the moment
+// we're sure it's time to post, via a separate light "digest-schedule" endpoint (DB-only, no
+// external API call).
+const lastDigestRunDate = new Map(); // guildId -> 'YYYY-MM-DD' in that guild's own timezone, guards against firing twice in a day
+
+function zonedNow(timeZone) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(new Date());
+  const get = type => parts.find(p => p.type === type)?.value;
+  return { date: `${get('year')}-${get('month')}-${get('day')}`, time: `${get('hour')}:${get('minute')}` };
+}
+
+function startDailyDigestScheduler() {
+  setInterval(checkAllGuildsForDigest, 60_000);
+}
+
+async function checkAllGuildsForDigest() {
+  for (const guild of client.guilds.cache.values()) {
+    try {
+      const schedule = await fetchJson('digest-schedule', { discordServerId: guild.id });
+      if (!schedule?.enabled) continue;
+
+      const { date, time } = zonedNow(schedule.timezone || 'America/Sao_Paulo');
+      const isScheduledTime = schedule.time === time && lastDigestRunDate.get(guild.id) !== date;
+      if (!schedule.manualTrigger && !isScheduledTime) continue;
+
+      if (isScheduledTime) lastDigestRunDate.set(guild.id, date);
+      await postDigestForGuild(guild.id, schedule.manualTrigger);
+    } catch (err) {
+      console.error(`Digest schedule check falhou para guild ${guild.id}:`, err);
+    }
+  }
+}
+
+async function fetchJson(path, params, options) {
+  const url = `${FAIRLOOT_API_URL}/api/discord/${path}?${new URLSearchParams({ sharedSecret: FAIRLOOT_BOT_SHARED_SECRET, ...params })}`;
+  const res = await fetch(url, options);
+  return res.json().catch(() => null);
+}
+
+async function postDigestForGuild(discordServerId, wasManualTrigger) {
+  try {
+    const data = await fetchJson('outdated-digest', { discordServerId });
+    if (!data?.enabled || !data.channelId) return;
+
+    if (data.players && data.players.length > 0) {
+      const channel = await client.channels.fetch(data.channelId).catch(() => null);
+      if (!channel || !channel.isTextBased()) {
+        console.error(`Digest: canal ${data.channelId} não encontrado/inválido na guild ${discordServerId}`);
+      } else {
+        const mention = data.roleId ? `<@&${data.roleId}> ` : '';
+        const lines = data.players.map(p => `• **${p.name}** — ${p.difficulties.map(d => DIFFICULTY_LABELS[d] || d).join(', ')}`);
+        const message = `${mention}⚠️ **SimC desatualizado** — os seguintes jogadores precisam atualizar (\`/simc <link>\`):\n${lines.join('\n')}`;
+        await channel.send({ content: message, allowedMentions: { roles: data.roleId ? [data.roleId] : [] } });
+        console.log(`Digest enviado para guild ${discordServerId} (${data.players.length} jogadores)`);
+      }
+    }
+  } finally {
+    // a manual "send now" fires exactly once — clear the flag whether or not there was anything to post
+    if (wasManualTrigger) {
+      await fetchJson('digest-trigger/consume', { discordServerId }, { method: 'POST' }).catch(() => {});
+    }
+  }
+}
 
 client.on(Events.InteractionCreate, async interaction => {
   if (!interaction.isChatInputCommand() || interaction.commandName !== 'simc') return;
