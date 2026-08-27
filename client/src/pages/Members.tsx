@@ -67,6 +67,12 @@ export default function Members() {
       setInitialLoading(false)
     }
     init()
+
+    // poll for newly-registered pending members instead of only checking on page load —
+    // otherwise a request made while this tab is already open won't show up until a manual refresh
+    if (isDemoMode()) return
+    const interval = setInterval(() => { fetchMembers(); fetchPending() }, 30000)
+    return () => clearInterval(interval)
   }, [])
 
   const approve = async (id: string) => {

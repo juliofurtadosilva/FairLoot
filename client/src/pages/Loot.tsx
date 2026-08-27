@@ -145,6 +145,23 @@ export default function Loot() {
   // quick "don't count this pick toward score" toggle for normal (non-manual) suggestion picks —
   // on by default (scores normally); clicking turns scoring off without switching to manual mode.
   const [noScoreItems, setNoScoreItems] = useState<Set<number>>(new Set())
+  // hides candidates flagged with an outdated SimC from the primary suggestion buttons/dropdown
+  const [hideOutdated, setHideOutdated] = useState(false)
+  // custom "more candidates" dropdown (native <select> can't lay out name-left/value-right or
+  // show the outdated icon inside an <option>) — only one open at a time, closes on outside click.
+  const [openCandidateDropdown, setOpenCandidateDropdown] = useState<number | null>(null)
+  const candidateDropdownRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (openCandidateDropdown === null) return
+    const onDocClick = (e: MouseEvent) => {
+      if (candidateDropdownRef.current && !candidateDropdownRef.current.contains(e.target as Node)) {
+        setOpenCandidateDropdown(null)
+      }
+    }
+    document.addEventListener('mousedown', onDocClick)
+    return () => document.removeEventListener('mousedown', onDocClick)
+  }, [openCandidateDropdown])
   // manual assignment: admin picks a roster member outside the suggestion algorithm (used when that
   // person doesn't show up in the suggestion candidates, e.g. item isn't on their wishlist). Never
   // reserves/blocks other item slots. Scoring is controlled per-item by manualScoreMode below.
@@ -919,7 +936,17 @@ export default function Loot() {
       <div className="tab-card loot-panel loot-panel--container">
         {initialLoading && <Skeleton count={4} />}
         {!initialLoading && step === 2 && (
-          <button className="loot-back-link" onClick={backToStep1}>← {t('loot.back')}</button>
+          <div className="loot-step2-topbar">
+            <button className="loot-back-link" onClick={backToStep1}>← {t('loot.back')}</button>
+            <button
+              type="button"
+              className={"hide-outdated-toggle" + (hideOutdated ? ' active' : '')}
+              onClick={() => setHideOutdated(v => !v)}
+              title={hideOutdated ? t('loot.showOutdated') : t('loot.hideOutdated')}
+            >
+              🕒⚠️ {t('loot.hideOutdated')}
+            </button>
+          </div>
         )}
         {!initialLoading && step === 1 && (
           <div className="loot-root">
@@ -1136,7 +1163,7 @@ export default function Loot() {
             <div className="suggestions-grid" ref={suggestionsGridRef}>
               {allocItems.map((it, idx) => {
                 const allCandidates = suggestions[idx] || []
-                const baseUpgradeCandidates = allCandidates.filter(c => c.itemPercentage > 0)
+                const baseUpgradeCandidates = allCandidates.filter(c => c.itemPercentage > 0 && (!hideOutdated || !c.itemPercentageOutdated))
                 // compute group indices for this item key
                 const itemKeyLocal = getItemKey(it)
                 const groupIndicesLocal = allocItems.reduce<number[]>((acc, item, i) => { if (getItemKey(item) === itemKeyLocal) acc.push(i); return acc }, [])
@@ -1172,7 +1199,7 @@ export default function Loot() {
                 const isManual = manualAssignItems.has(idx)
                 const manualMode = manualScoreMode[idx] || 'noscore'
                 return (
-                  <div key={idx} className="card suggestion-card">
+                  <div key={idx} className="card suggestion-card" style={openCandidateDropdown === idx ? { position: 'relative', zIndex: 20 } : undefined}>
                     <div className="suggestion-header">
                       {it.icon ? <img src={it.icon} alt="" className="suggestion-icon" draggable={false} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} /> : <div className="suggestion-icon placeholder" />}
                       <div className="suggestion-title">{(lang === 'pt' && it.itemId && itemNameMap[it.itemId]) ? itemNameMap[it.itemId] : it.itemName}</div>
@@ -1282,17 +1309,51 @@ export default function Loot() {
                             )
                           })}
                         </div>
-                        {sortedUpgrades.length > 5 && (
-                          <select className="candidate-select" value={assignments[idx] || ''} onChange={e => assignToIndex(idx, e.target.value)}>
-                            <option value="">{t('loot.choose')}</option>
-                            {sortedUpgrades.slice(0, 12).map((c) => {
-                              const classLabel = c.class ? ` (${getClassNameLocalized(c.class, lang)})` : ''
-                              return (
-                                <option key={c.characterName} value={c.characterName}>{c.characterName}{classLabel} — ⬆{Number(c.itemPercentage).toFixed(2)}% · P:{Math.round(c.priority * 100)}</option>
-                              )
-                            })}
-                          </select>
-                        )}
+                        {sortedUpgrades.length > 5 && (() => {
+                          const isOpen = openCandidateDropdown === idx
+                          const selectedCand = sortedUpgrades.find(c => c.characterName === assignments[idx])
+                          return (
+                            <div className="candidate-dropdown" ref={isOpen ? candidateDropdownRef : undefined}>
+                              <button
+                                type="button"
+                                className="candidate-dropdown-toggle"
+                                onClick={() => setOpenCandidateDropdown(isOpen ? null : idx)}
+                              >
+                                <span className="candidate-dropdown-toggle-label">
+                                  {selectedCand ? `${selectedCand.characterName}${selectedCand.class ? ` (${getClassNameLocalized(selectedCand.class, lang)})` : ''}` : t('loot.choose')}
+                                </span>
+                                {selectedCand && (
+                                  <span className="candidate-dropdown-toggle-meta">
+                                    ⬆{Number(selectedCand.itemPercentage).toFixed(2)}% · P:{Math.round(selectedCand.priority * 100)}
+                                    {selectedCand.itemPercentageOutdated && <span title="SimC desatualizado">🕒⚠️</span>}
+                                  </span>
+                                )}
+                                <span className="candidate-dropdown-arrow">{isOpen ? '▲' : '▼'}</span>
+                              </button>
+                              {isOpen && (
+                                <div className="candidate-dropdown-list">
+                                  {sortedUpgrades.map((c) => {
+                                    const classLabel = c.class ? ` (${getClassNameLocalized(c.class, lang)})` : ''
+                                    return (
+                                      <button
+                                        type="button"
+                                        key={c.characterName}
+                                        className={"candidate-dropdown-item" + (assignments[idx] === c.characterName ? ' selected' : '')}
+                                        onClick={() => { assignToIndex(idx, c.characterName); setOpenCandidateDropdown(null) }}
+                                      >
+                                        <span className="candidate-dropdown-item-name">{c.characterName}{classLabel}</span>
+                                        <span className="candidate-dropdown-item-meta">
+                                          ⬆{Number(c.itemPercentage).toFixed(2)}% · P:{Math.round(c.priority * 100)}
+                                          {c.itemPercentageOutdated && <span title="SimC desatualizado">🕒⚠️</span>}
+                                        </span>
+                                      </button>
+                                    )
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })()}
                       </div>
                     )}
                     {/* Manual assignment — bypasses suggestions, never scores, never blocks other items */}

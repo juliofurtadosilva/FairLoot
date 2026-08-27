@@ -68,6 +68,14 @@
   gap:4px;
 }
 
+.wishlist-refreshing{
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 0;
+  width: 100%;
+}
+
 .wishlist-no-player{
   text-align:center;
   color:var(--muted);

@@ -1,11 +1,19 @@
 /* Styles migrated from inline styles in Loot.tsx */
 
-/* Back link on step 2 — replaces the old always-on step breadcrumb */
+/* Top bar on step 2 — back link on the left, outdated-SimC filter on the right */
+.loot-step2-topbar {
+  width: 100%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 12px;
+}
+
 .loot-back-link {
-  align-self: flex-start;
   background: none;
   border: none;
-  padding: 0 0 12px;
+  padding: 0;
   color: var(--muted);
   font-size: 13px;
   font-weight: 600;
@@ -13,6 +21,27 @@
 
   &:hover {
     color: var(--accent);
+  }
+}
+
+.hide-outdated-toggle {
+  padding: 5px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.15s;
+
+  &.active {
+    border-color: rgba(239, 68, 68, 0.5);
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--text);
+  }
+  &:hover {
+    border-color: var(--accent);
   }
 }
 
@@ -175,11 +204,10 @@
 .available-title { font-size:15px }
 .muted { color: var(--muted) }
 
-/* Sticky footer — always reachable without scrolling, and visibly disabled until an item is picked */
+/* Sits at the bottom of the bounded, non-scrolling .loot-step2 column — no longer needs
+   position:sticky (that relied on the old min-height:85vh trick, which broke at some zoom
+   levels and let this footer float on top of the cards instead of below them). */
 .actions-row {
-  position: sticky;
-  bottom: 0;
-  left: 0;
   flex-shrink: 0;
   padding: 14px 0;
   margin-top: 8px;
@@ -187,8 +215,7 @@
   justify-content: center;
   gap: 12px;
   width: 100%;
-  background: linear-gradient(180deg, transparent, var(--card) 35%);
-  z-index: 5;
+  background: var(--card);
 }
 .actions-row .primary,
 .loot-next-row .primary {
@@ -210,22 +237,24 @@
 
 .spinner-row { display:flex; justify-content:center; padding: 12px 0 }
 
-/* Step 2 root — min-height gives the layout room to center content and still pin the actions
-   row near the bottom instead of everything huddling at the top when there are only a few items. */
+/* Step 2 root — fills exactly the card's available height; .suggestions-scroll absorbs the
+   leftover space and scrolls internally so .actions-row always stays visible below it instead
+   of floating on top of the cards (the old min-height:85vh guess broke at some zoom levels). */
 .loot-step2 {
   display: flex;
   flex-direction: column;
-  min-height: 85vh;
+  height: 100%;
+  min-height: 0;
 }
 
 .suggestions-scroll {
-  max-height: none;
-  overflow: visible;
   padding: 2px;
   width: 100%;
-  flex: 1;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
 }
 /* auto-fit (not auto-fill) collapses unused tracks, and justify-content centers the group —
@@ -304,6 +333,105 @@
 .badge-simc-warn { font-size:11px; flex-shrink:0; filter:saturate(2) }
 @keyframes pulse-warn { 0%,100%{opacity:1} 50%{opacity:0.5} }
 .candidate-select { padding:4px 8px; border-radius: 4px; border:1px solid var(--border); background:var(--select-bg); color:var(--text); font-size:11px; width:100%; margin-top:2px }
+
+/* custom dropdown replacing the native <select> for the "more candidates" list — a plain
+   <option> can't lay out name/value on opposite sides or show the outdated icon. */
+.candidate-dropdown {
+  position: relative;
+  width: 100%;
+  margin-top: 2px;
+}
+
+.candidate-dropdown-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--select-bg);
+  color: var(--text);
+  font-size: 11px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.candidate-dropdown-toggle-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.candidate-dropdown-toggle-meta {
+  flex-shrink: 0;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.candidate-dropdown-arrow {
+  flex-shrink: 0;
+  font-size: 8px;
+  color: var(--muted);
+}
+
+.candidate-dropdown-list {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 2px);
+  z-index: 10;
+  max-height: 220px;
+  overflow-y: auto;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--select-bg);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+
+.candidate-dropdown-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 5px 8px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    background: rgba(var(--accent-rgb), 0.12);
+  }
+  &.selected {
+    background: rgba(var(--accent-rgb), 0.2);
+  }
+}
+
+.candidate-dropdown-item-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.candidate-dropdown-item-meta {
+  flex-shrink: 0;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
 
 .manual-score-toggle { display:flex; gap:4px; margin-top:4px }
 .manual-mode-btn {

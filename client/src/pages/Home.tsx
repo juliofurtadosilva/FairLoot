@@ -382,6 +382,11 @@ export default function Home() {
                 <button type="submit" disabled={regLoading} className="home-btn-submit" style={{ opacity: regLoading ? 0.6 : 1 }}>
                   {regLoading ? '⏳' : t('home.register')}
                 </button>
+                {regLoading && (
+                  <div style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center', marginTop: 4 }}>
+                    {lang === 'pt' ? 'Pode levar até um minuto se o servidor estiver acordando.' : 'This can take up to a minute if the server is waking up.'}
+                  </div>
+                )}
               </form>
             )}
 
@@ -440,7 +445,14 @@ export default function Home() {
               ))}
             </div>
 
-            {loginSelectLoading && <div className="home-loading">⏳</div>}
+            {loginSelectLoading && (
+              <div className="home-loading">
+                ⏳
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
+                  {lang === 'pt' ? 'Pode levar até um minuto se o servidor estiver acordando.' : 'This can take up to a minute if the server is waking up.'}
+                </div>
+              </div>
+            )}
             {loginSelectError && <div className="home-error">{String(loginSelectError)}</div>}
             <button onClick={() => { setView('home'); setLoginSelectError(null) }} className="home-back-btn">← {t('loot.back')}</button>
           </>

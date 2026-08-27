@@ -75,4 +75,22 @@ api.interceptors.request.use(config => {
   return config
 })
 
+// Render's free tier can take up to ~30-60s to wake a sleeping backend. A request that lands
+// during that window comes back as a network error (no response) or a 5xx from the proxy before
+// the app is actually listening — retrying a few times with a short wait rides through that
+// instead of failing outright and forcing the user to restart the whole Battle.net flow.
+export async function withColdStartRetry<T>(fn: () => Promise<T>, attempts = 6, delayMs = 5000): Promise<T> {
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fn()
+    } catch (err: any) {
+      const status = err?.response?.status
+      const looksLikeColdStart = !err?.response || status >= 500
+      if (i === attempts - 1 || !looksLikeColdStart) throw err
+      await new Promise(resolve => setTimeout(resolve, delayMs))
+    }
+  }
+  throw new Error('unreachable')
+}
+
 export default api

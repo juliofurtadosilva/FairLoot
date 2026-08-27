@@ -64,6 +64,7 @@ export default function Wishlist() {
     return new Set<string>()
   })
   const [initialLoading, setInitialLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   // simc filter removed from Wishlist — controlled in Dashboard
   // guild/characters removed: iLevel logic was cancelled
   const { t, theme } = useApp()
@@ -133,6 +134,7 @@ export default function Wishlist() {
       setError(err?.response?.data || t('wishlist.error'))
     } finally {
       setInitialLoading(false)
+      setRefreshing(false)
     }
   }
 
@@ -223,11 +225,12 @@ export default function Wishlist() {
           <button
             onClick={() => {
               sessionStorage.removeItem('fairloot_wishlist_cache');
-              setInitialLoading(true);
+              setRefreshing(true);
               fetchData(true);
             }}
+            disabled={refreshing}
             className="wishlist-refresh-btn"
-          >🔄 Atualizar wishlist</button>
+          >{refreshing ? `⏳ ${t('wishlist.refreshing')}` : `🔄 ${t('wishlist.refresh')}`}</button>
           {raids.length > 1 && (
             <select
               value={selectedRaid}
@@ -247,6 +250,10 @@ export default function Wishlist() {
 
         {/* Character list */}
         <div className="wishlist-list">
+          {refreshing ? (
+            <div className="wishlist-refreshing"><Spinner size={32} /></div>
+          ) : (
+          <>
           {filtered.length === 0 && <EmptyState icon="🔍" message={t('wishlist.noPlayer')} />}
           {filtered.map((c, idx) => {
             const isExpanded = expandedChars.has(c.name)
@@ -345,6 +352,8 @@ export default function Wishlist() {
               </div>
             )
           })}
+          </>
+          )}
         </div>
         </>
         )}

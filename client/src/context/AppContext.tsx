@@ -105,6 +105,8 @@ const translations = {
   // wishlist
   'wishlist.title': { pt: 'Wishlist (WowAudit)', en: 'Wishlist (WowAudit)' },
   'wishlist.search': { pt: '🔍 Buscar jogador...', en: '🔍 Search player...' },
+  'wishlist.refresh': { pt: 'Atualizar wishlist', en: 'Refresh wishlist' },
+  'wishlist.refreshing': { pt: 'Atualizando...', en: 'Refreshing...' },
   'wishlist.allRaids': { pt: 'Todas raids', en: 'All raids' },
   'wishlist.players': { pt: 'jogadores', en: 'players' },
   'wishlist.player': { pt: 'jogador', en: 'player' },
@@ -144,6 +146,8 @@ const translations = {
   'loot.dupOff': { pt: 'Clique para permitir repetir jogador neste item', en: 'Click to allow duplicate player for this item' },
   'loot.scoreOn': { pt: 'Contando score (clique para dar sem pontuar)', en: 'Counting score (click to give without scoring)' },
   'loot.scoreOff': { pt: 'Não vai pontuar — clique para voltar a contar score', en: 'Won\'t score — click to count score again' },
+  'loot.hideOutdated': { pt: 'Ocultar desatualizados', en: 'Hide outdated' },
+  'loot.showOutdated': { pt: 'Mostrar desatualizados', en: 'Show outdated' },
   'loot.manualAssign': { pt: 'Atribuir manualmente', en: 'Manually assign' },
   'loot.manualAssignNone': { pt: '-- ninguém --', en: '-- nobody --' },
   'loot.manualAssignBadge': { pt: 'MANUAL · SEM PONTOS', en: 'MANUAL · NO SCORE' },

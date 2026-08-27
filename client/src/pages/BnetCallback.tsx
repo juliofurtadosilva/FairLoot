@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import api from '../services/api'
+import api, { withColdStartRetry } from '../services/api'
 import { bnetLogin } from '../services/auth'
 import { useApp } from '../context/AppContext'
 
@@ -49,7 +49,7 @@ export default function BnetCallback() {
         })
     } else {
       // Register flow — fetch characters
-      api.post('/api/auth/bnet/characters', { code, redirectUri, region })
+      withColdStartRetry(() => api.post('/api/auth/bnet/characters', { code, redirectUri, region }))
         .then(r => {
           sessionStorage.setItem('bnet_session', JSON.stringify({
             sessionId: r.data.sessionId,
@@ -95,6 +95,9 @@ export default function BnetCallback() {
       <div style={{ textAlign: 'center' }}>
         <div style={{ fontSize: 24, marginBottom: 8 }}>⏳</div>
         <div>{lang === 'pt' ? 'Conectando com Battle.net...' : 'Connecting to Battle.net...'}</div>
+        <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>
+          {lang === 'pt' ? 'Pode levar até um minuto se o servidor estiver acordando.' : 'This can take up to a minute if the server is waking up.'}
+        </div>
       </div>
     </div>
   )

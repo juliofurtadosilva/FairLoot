@@ -30,6 +30,7 @@ type Candidate = {
   characterName: string
   class?: string
   itemPercentage: number
+  itemPercentageOutdated?: boolean
   overallScore: number
   lootReceivedCount: number
   lastLootDate?: string
@@ -208,6 +209,7 @@ export default function LootHistory() {
     const candidates: Candidate[] = []
     for (const ch of summary) {
       let bestPerc = 0
+      let bestOutdated = false
       if (ch.instances) {
         for (const inst of ch.instances) {
           if (!inst.difficulties) continue
@@ -218,7 +220,7 @@ export default function LootHistory() {
               for (const it of e.items) {
                 const match = (itemId != null && it.id != null && itemId === it.id) ||
                   (itemName && it.name && itemName.toLowerCase() === it.name.toLowerCase())
-                if (match && (it.percentage ?? 0) > bestPerc) bestPerc = it.percentage ?? 0
+                if (match && (it.percentage ?? 0) > bestPerc) { bestPerc = it.percentage ?? 0; bestOutdated = !!it.outdated }
               }
             }
           }
@@ -228,6 +230,7 @@ export default function LootHistory() {
         characterName: ch.name,
         class: ch.class,
         itemPercentage: bestPerc,
+        itemPercentageOutdated: bestPerc > 0 && bestOutdated,
         overallScore: 0,
         lootReceivedCount: lootCountByChar[ch.name] || 0,
         lastLootDate: lastLootByChar[ch.name] ? new Date(lastLootByChar[ch.name]).toISOString() : undefined,
@@ -315,6 +318,7 @@ export default function LootHistory() {
             characterName: c.characterName,
             class: c.class,
             itemPercentage: c.itemPercentage,
+            itemPercentageOutdated: c.itemPercentageOutdated ?? false,
             overallScore: c.overallScore,
             lootReceivedCount: c.lootReceivedCount ?? 0,
             lastLootDate: c.lastLootDate,
@@ -734,12 +738,13 @@ export default function LootHistory() {
                   <button
                     key={k}
                     onClick={() => { setRedistSelected(c.characterName); setRedistManualChar('') }}
-                    title={`Upgrade: ${Number(c.itemPercentage).toFixed(1)}% | Score: ${Number(c.overallScore).toFixed(1)} | Priority: ${Number(c.priority).toFixed(3)}`}
+                    title={`Upgrade: ${Number(c.itemPercentage).toFixed(1)}% | Score: ${Number(c.overallScore).toFixed(1)} | Priority: ${Number(c.priority).toFixed(3)}${c.itemPercentageOutdated ? ' | ⚠ SimC desatualizado — gear mudou desde o último upload' : ''}`}
                     className={"lh-redistribute-candidate" + (isSelected ? ' lh-redistribute-candidate--selected' : '')}
                   >
                     <span className="lh-redistribute-candidate-name">{c.characterName}{classLabel}</span>
                     <span className="lh-redistribute-candidate-meta">
                       ⬆{Number(c.itemPercentage).toFixed(1)}% · P:{Number(c.priority * 100).toFixed(0)}
+                      {c.itemPercentageOutdated && <span className="badge badge-simc-warn" title="SimC desatualizado">🕒⚠️</span>}
                     </span>
                   </button>
                 )

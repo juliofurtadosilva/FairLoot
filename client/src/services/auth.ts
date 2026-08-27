@@ -1,4 +1,4 @@
-import api from './api'
+import api, { withColdStartRetry } from './api'
 
 export const login = async (email: string, password: string) => {
   const r = await api.post('/api/auth/login', { email, password })
@@ -44,7 +44,7 @@ export const bnetRegister = async (params: {
   characterIndex: number
   wowauditApiKey?: string
 }) => {
-  const r = await api.post('/api/auth/bnet/register', params)
+  const r = await withColdStartRetry(() => api.post('/api/auth/bnet/register', params))
   const token = r.data.token
   if (token) {
     localStorage.setItem('accessToken', token)
@@ -58,7 +58,7 @@ export const bnetLogin = async (params: {
   redirectUri: string
   region: string
 }) => {
-  const r = await api.post('/api/auth/bnet/login', params)
+  const r = await withColdStartRetry(() => api.post('/api/auth/bnet/login', params))
   const token = r.data.token
   if (token) {
     localStorage.setItem('accessToken', token)
@@ -71,7 +71,7 @@ export const bnetLoginSelect = async (params: {
   sessionId: string
   userId: string
 }) => {
-  const r = await api.post('/api/auth/bnet/login/select', params)
+  const r = await withColdStartRetry(() => api.post('/api/auth/bnet/login/select', params))
   const token = r.data.token
   if (token) {
     localStorage.setItem('accessToken', token)
