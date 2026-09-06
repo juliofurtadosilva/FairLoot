@@ -539,6 +539,38 @@ export default function AdminPanel() {
                 </span>
               </div>
               <div className="admin-field-row">
+                <label className="admin-label">{t('admin.discordDigestDays')}:</label>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {[
+                    { i: 0, key: 'sun' }, { i: 1, key: 'mon' }, { i: 2, key: 'tue' }, { i: 3, key: 'wed' },
+                    { i: 4, key: 'thu' }, { i: 5, key: 'fri' }, { i: 6, key: 'sat' },
+                  ].map(({ i, key }) => {
+                    const current = (form.discordDigestDaysOfWeek || '0,1,2,3,4,5,6').split(',').map((x: string) => x.trim()).filter(Boolean)
+                    const active = current.includes(String(i))
+                    return (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => {
+                          // keep at least one day selected — an empty list falls back to "every day"
+                          // server-side anyway, which would silently contradict what the admin sees here
+                          if (active && current.length === 1) return
+                          const next = active ? current.filter((x: string) => x !== String(i)) : [...current, String(i)]
+                          next.sort((a: string, b: string) => Number(a) - Number(b))
+                          setForm({ ...form, discordDigestDaysOfWeek: next.join(',') })
+                        }}
+                        style={{
+                          minWidth: 34, height: 30, borderRadius: 8, fontWeight: 700, cursor: 'pointer', fontSize: 11,
+                          border: active ? '1px solid var(--accent)' : '1px solid var(--border)',
+                          background: active ? 'rgba(var(--accent-rgb),0.12)' : 'transparent',
+                          color: active ? 'var(--accent)' : 'var(--muted)',
+                        }}
+                      >{t(`admin.discordDigestDay.${key}` as any)}</button>
+                    )
+                  })}
+                </div>
+              </div>
+              <div className="admin-field-row">
                 <label className="admin-label">{t('admin.discordDigestDifficulties')}:</label>
                 <div style={{ display: 'flex', gap: 6 }}>
                   {['normal', 'heroic', 'mythic'].map(d => {

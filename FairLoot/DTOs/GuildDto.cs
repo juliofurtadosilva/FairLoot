@@ -12,6 +12,7 @@ namespace FairLoot.DTOs
         public string? DiscordDigestDifficulties { get; set; }
         public string? DiscordDigestTime { get; set; }
         public string? DiscordDigestTimezone { get; set; }
+        public string? DiscordDigestDaysOfWeek { get; set; }
         public double? PriorityAlpha { get; set; }
         public double? PriorityBeta { get; set; }
         public double? PriorityGamma { get; set; }

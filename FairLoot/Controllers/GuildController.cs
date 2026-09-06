@@ -283,6 +283,9 @@ namespace FairLoot.Controllers
                 user!.Guild!.DiscordDigestTime = updatedGuild.DiscordDigestTime;
             if (!string.IsNullOrEmpty(updatedGuild.DiscordDigestTimezone) && IsValidTimeZone(updatedGuild.DiscordDigestTimezone))
                 user!.Guild!.DiscordDigestTimezone = updatedGuild.DiscordDigestTimezone;
+            // allows an explicit empty string too — "no days selected" (schedule never fires, manual trigger still does)
+            if (updatedGuild.DiscordDigestDaysOfWeek != null && System.Text.RegularExpressions.Regex.IsMatch(updatedGuild.DiscordDigestDaysOfWeek, @"^([0-6](,[0-6])*)?$"))
+                user!.Guild!.DiscordDigestDaysOfWeek = updatedGuild.DiscordDigestDaysOfWeek;
             if (updatedGuild.PriorityAlpha.HasValue && updatedGuild.PriorityAlpha.Value >= 0 && updatedGuild.PriorityAlpha.Value <= 1)
                 user!.Guild!.PriorityAlpha = updatedGuild.PriorityAlpha.Value;
             if (updatedGuild.PriorityBeta.HasValue && updatedGuild.PriorityBeta.Value >= 0 && updatedGuild.PriorityBeta.Value <= 1)

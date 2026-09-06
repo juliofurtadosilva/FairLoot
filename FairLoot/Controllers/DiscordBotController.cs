@@ -65,14 +65,18 @@ namespace FairLoot.Controllers
 
             var guild = await _context.Guilds
                 .Where(g => g.DiscordServerId == discordServerId)
-                .Select(g => new { g.DiscordDigestEnabled, g.DiscordDigestChannelId, g.DiscordDigestTime, g.DiscordDigestTimezone, g.DiscordDigestPendingManualTrigger })
+                .Select(g => new { g.DiscordDigestEnabled, g.DiscordDigestChannelId, g.DiscordDigestTime, g.DiscordDigestTimezone, g.DiscordDigestDaysOfWeek, g.DiscordDigestPendingManualTrigger })
                 .FirstOrDefaultAsync();
             if (guild == null || !guild.DiscordDigestEnabled || string.IsNullOrEmpty(guild.DiscordDigestChannelId))
                 return Ok(new { enabled = false });
 
             var time = string.IsNullOrEmpty(guild.DiscordDigestTime) ? "21:00" : guild.DiscordDigestTime;
             var timezone = string.IsNullOrEmpty(guild.DiscordDigestTimezone) ? "America/Sao_Paulo" : guild.DiscordDigestTimezone;
-            return Ok(new { enabled = true, time, timezone, manualTrigger = guild.DiscordDigestPendingManualTrigger });
+            // an existing guild that never touched this field has '' from the migration's DB default
+            // (not the C# default) — treat that the same as "every day" so nobody's working digest
+            // silently stops firing after this deploy.
+            var daysOfWeek = string.IsNullOrEmpty(guild.DiscordDigestDaysOfWeek) ? "0,1,2,3,4,5,6" : guild.DiscordDigestDaysOfWeek;
+            return Ok(new { enabled = true, time, timezone, daysOfWeek, manualTrigger = guild.DiscordDigestPendingManualTrigger });
         }
 
         // POST api/discord/digest-trigger/consume?sharedSecret=...&discordServerId=...

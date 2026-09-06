@@ -38,12 +38,18 @@ client.once(Events.ClientReady, c => {
 // external API call).
 const lastDigestRunDate = new Map(); // guildId -> 'YYYY-MM-DD' in that guild's own timezone, guards against firing twice in a day
 
+const WEEKDAY_INDEX = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+
 function zonedNow(timeZone) {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false, weekday: 'short',
   }).formatToParts(new Date());
   const get = type => parts.find(p => p.type === type)?.value;
-  return { date: `${get('year')}-${get('month')}-${get('day')}`, time: `${get('hour')}:${get('minute')}` };
+  return {
+    date: `${get('year')}-${get('month')}-${get('day')}`,
+    time: `${get('hour')}:${get('minute')}`,
+    weekday: WEEKDAY_INDEX[get('weekday')],
+  };
 }
 
 function startDailyDigestScheduler() {
@@ -56,8 +62,11 @@ async function checkAllGuildsForDigest() {
       const schedule = await fetchJson('digest-schedule', { discordServerId: guild.id });
       if (!schedule?.enabled) continue;
 
-      const { date, time } = zonedNow(schedule.timezone || 'America/Sao_Paulo');
-      const isScheduledTime = schedule.time === time && lastDigestRunDate.get(guild.id) !== date;
+      const { date, time, weekday } = zonedNow(schedule.timezone || 'America/Sao_Paulo');
+      const allowedDays = (schedule.daysOfWeek || '0,1,2,3,4,5,6').split(',').map(Number);
+      const isAllowedDay = allowedDays.includes(weekday);
+      const isScheduledTime = isAllowedDay && schedule.time === time && lastDigestRunDate.get(guild.id) !== date;
+      // a manual "send now" always fires regardless of which days are configured — that's the point of it
       if (!schedule.manualTrigger && !isScheduledTime) continue;
 
       if (isScheduledTime) lastDigestRunDate.set(guild.id, date);

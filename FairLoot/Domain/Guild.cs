@@ -27,6 +27,9 @@
         // IANA zone (e.g. "America/Sao_Paulo", "America/New_York") — captured from the browser of
         // whoever last set the time, so a US guild's 9pm means their 9pm, not Brasília's.
         public string DiscordDigestTimezone { get; set; } = "America/Sao_Paulo";
+        // comma-separated day-of-week indices (0=Sunday..6=Saturday) the digest is allowed to fire on.
+        // Default = every day (unchanged behavior for guilds that never touched this).
+        public string DiscordDigestDaysOfWeek { get; set; } = "0,1,2,3,4,5,6";
         // set by the Admin panel's "send now" button; the bot clears it after posting the digest once
         public bool DiscordDigestPendingManualTrigger { get; set; } = false;
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
