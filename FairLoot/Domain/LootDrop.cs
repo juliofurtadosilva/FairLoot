@@ -20,5 +20,8 @@ namespace FairLoot.Domain
         public bool IsManualAssignment { get; set; } = false;
         // true when a normal (non-manual) suggestion pick was given without counting toward score.
         public bool NoScore { get; set; } = false;
+        // true when this pick is a transmog (never scores). Independent of AssignedTo — a manually
+        // assigned transmog pick keeps the recipient's name instead of blanking it like an auto-detected one.
+        public bool IsTransmogPick { get; set; } = false;
     }
 }

@@ -12,6 +12,8 @@ export default function AdminPanel() {
   const [form, setForm] = useState<any>({})
   const [search, setSearch] = useState('')
   const [showHelp, setShowHelp] = useState(false)
+  const [adminTab, setAdminTab] = useState<'general' | 'discord'>('general')
+  const [showRaidImages, setShowRaidImages] = useState(false)
   const [wowauditStatus, setWowauditStatus] = useState<'checking' | 'connected' | 'disconnected' | 'nokey'>('checking')
   const [wowauditCharCount, setWowauditCharCount] = useState(0)
   const [lootHistory, setLootHistory] = useState<any[]>([])
@@ -267,6 +269,13 @@ export default function AdminPanel() {
 
         {guild ? (
           <div className="admin-body">
+            <div className="admin-tab-nav">
+              <button className={`admin-tab-btn ${adminTab === 'general' ? 'active' : ''}`} onClick={() => setAdminTab('general')}>{t('admin.tabGeneral')}</button>
+              <button className={`admin-tab-btn ${adminTab === 'discord' ? 'active' : ''}`} onClick={() => setAdminTab('discord')}>{t('admin.tabDiscord')}</button>
+            </div>
+
+            {adminTab === 'general' && (
+            <>
             {/* Settings section */}
             <div className="admin-settings">
               <div className="admin-section-label">{t('admin.settings')}</div>
@@ -467,13 +476,24 @@ export default function AdminPanel() {
               </div>
             </div>
 
-            {/* Raid/boss image overrides */}
+            {/* Raid/boss image overrides — collapsed by default, rarely touched */}
             <div className="admin-settings">
-              <div className="admin-section-label">{t('admin.raidImages')}</div>
-              <div className="admin-formula-item">{t('admin.raidImagesDesc')}</div>
-              <RaidImageEditor images={raidImages} onSave={saveRaidImage} t={t} />
+              <div className="admin-formula-toggle" onClick={() => setShowRaidImages(!showRaidImages)}>
+                <span className="admin-formula-toggle-label">{t('admin.raidImages')}</span>
+                <span className="admin-formula-toggle-arrow" style={{ transform: showRaidImages ? 'rotate(90deg)' : 'rotate(0)' }}>▶</span>
+              </div>
+              {showRaidImages && (
+                <>
+                  <div className="admin-formula-item">{t('admin.raidImagesDesc')}</div>
+                  <RaidImageEditor images={raidImages} onSave={saveRaidImage} t={t} />
+                </>
+              )}
             </div>
+            </>
+            )}
 
+            {adminTab === 'discord' && (
+            <>
             {/* Discord bot link */}
             <div className="admin-settings">
               <div className="admin-section-label">{t('admin.discordBot')}</div>
@@ -607,8 +627,10 @@ export default function AdminPanel() {
                 )}
               </div>
             </div>
+            </>
+            )}
 
-            {/* Characters section */}
+            {/* Characters section — roster management, shown regardless of tab */}
             <div className="admin-chars-section">
               <div className="admin-chars-header">
                 <div className="admin-chars-count">{t('admin.characters')} ({filtered.length})</div>

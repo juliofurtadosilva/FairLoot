@@ -11,6 +11,32 @@
   gap:20px;
 }
 
+.admin-tab-nav{
+  display:flex;
+  border:1px solid var(--border);
+  border-radius: 4px;
+  overflow:hidden;
+}
+
+.admin-tab-btn{
+  flex:1;
+  padding:9px 12px;
+  font-size:13px;
+  font-weight:600;
+  background:var(--panel-bg);
+  color:var(--muted);
+  border:none;
+  border-right:1px solid var(--border);
+  cursor:pointer;
+
+  &:last-child{ border-right:none; }
+
+  &.active{
+    background:rgba(var(--accent-rgb),0.12);
+    color:var(--accent);
+  }
+}
+
 .admin-settings{
   display:flex;
   flex-direction:column;

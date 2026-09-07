@@ -88,7 +88,6 @@
   z-index: 5;
   width: 100%;
   display: flex;
-  margin-bottom: 16px;
   border: 1px solid var(--border);
   border-radius: 4px;
   overflow: hidden;
@@ -113,6 +112,8 @@
     background: rgba(var(--accent-rgb), 0.16);
     color: var(--accent);
   }
+  &.dragging { opacity: 0.4; }
+  &.drag-over { background: rgba(var(--accent-rgb), 0.24); }
 }
 
 .carousel { width:100%; display:flex; gap:8px; align-items:stretch }
@@ -163,9 +164,11 @@
 
 /* Loot distribution mini chart */
 .dash-chart-section { width:100%; text-align:left }
-.dash-chart-title { margin:0 0 4px; font-size:15px; font-weight:700; color:var(--accent) }
-.dash-chart-since { font-size:11px; color:var(--muted); margin-bottom:10px }
-.dash-chart { display:flex; flex-direction:column; gap:6px; width:100% }
+.dash-chart-header { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:8px }
+.dash-chart-header-text { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap }
+.dash-chart-title { margin:0; font-size:15px; font-weight:700; color:var(--accent) }
+.dash-chart-since { font-size:11px; color:var(--muted) }
+.dash-chart { display:flex; flex-direction:column; gap:4px; width:100%; margin-top: 10px;}
 
 .dash-chart-row {
   display:flex;
@@ -186,7 +189,7 @@
 
 .dash-chart-bar-track {
   flex:1;
-  height:18px;
+  height:13px;
   display:flex;
   background:var(--glass);
   border-radius: 4px;
@@ -203,22 +206,61 @@
   background: var(--color-noscore);
 }
 
-.dash-chart-legend {
-  font-size:11px;
-  color:var(--muted);
-  margin-bottom:8px;
+/* One joined bar — the 3 view toggles plus the sort button, all touching like tabs */
+.dash-chart-view-toggle {
   display:flex;
-  align-items:center;
-  gap:6px;
+  flex-shrink:0;
+  width:fit-content;
+  border:1px solid var(--border);
+  border-radius: 4px;
+  overflow:hidden;
+
+  > button {
+    border:none;
+    border-right:1px solid var(--border);
+    border-radius:0;
+    background:transparent;
+    color:var(--muted);
+    cursor:pointer;
+
+    &:last-child { border-right:none; }
+  }
 }
 
-.dash-chart-legend::before {
-  content:'';
-  display:inline-block;
-  width:10px;
-  height:10px;
-  border-radius: 4px;
-  background:var(--color-noscore);
+.dash-chart-view-btn {
+  padding:6px 14px;
+  font-size:11px;
+  font-weight:700;
+
+  &.active {
+    background:rgba(var(--accent-rgb),0.12);
+    color:var(--accent);
+  }
+
+  &--transmog.active {
+    background:rgba(124,58,237,0.15);
+    color:var(--color-transmog);
+  }
+
+  &--noscore.active {
+    background:rgba(148,163,184,0.18);
+    color:var(--text);
+  }
+}
+
+.dash-chart-sort-btn {
+  padding:6px 12px;
+  font-size:14px;
+  font-weight:700;
+
+  &:hover { color:var(--text); background:rgba(var(--accent-rgb),0.08); }
+}
+
+.dash-chart-empty {
+  font-size:12px;
+  color:var(--muted);
+  text-align:center;
+  padding:12px 0;
 }
 
 @keyframes barGrow {
@@ -226,96 +268,52 @@
 }
 
 .dash-chart-value {
-  width:28px;
   flex-shrink:0;
+  min-width:28px;
   font-size:12px;
   font-weight:700;
   color:var(--muted);
   text-align:left;
+  white-space:nowrap;
 }
 
-/* Timeline */
 .dash-timeline {
-  margin-top:16px;
+  margin-top:8px;
   width:100%;
 }
 
-.dash-timeline-title {
-  font-size:12px;
-  font-weight:600;
-  color:var(--muted);
-  margin-bottom:8px;
-}
-
+/* Joined tab-bar of days, like the top page nav — squares fused side by side, tinted by count */
 .dash-timeline-track {
   display:flex;
-  align-items:flex-end;
-  gap:4px;
   width:100%;
+  border:1px solid var(--border);
+  border-radius: 4px;
   overflow-x:auto;
-  padding-bottom:4px;
+  overflow-y:hidden;
 }
 
 .dash-timeline-point {
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  gap:4px;
-  min-width:32px;
-  flex:1;
-  cursor:pointer;
-}
-
-.dash-timeline-bar {
-  width:100%;
-  max-width:28px;
-  background:var(--accent);
-  border-radius: 4px 4px 0 0;
-  opacity:0.7;
-  transition: opacity 0.2s;
-}
-
-.dash-timeline-point:hover .dash-timeline-bar {
-  opacity:1;
-}
-
-.dash-timeline-point.selected .dash-timeline-bar {
-  opacity:1;
-  box-shadow: 0 0 0 2px rgba(var(--accent-rgb),0.5);
-}
-
-.dash-timeline-point.selected .dash-timeline-label {
-  color:var(--accent);
-  font-weight:700;
-}
-
-.dash-chart-filter {
-  font-size:12px;
-  color:var(--muted);
-  margin-bottom:8px;
-  display:flex;
-  align-items:center;
-  gap:8px;
-}
-
-.dash-chart-filter-clear {
-  font-size:11px;
-  padding:2px 8px;
-  border-radius:4px;
-  border:1px solid var(--border);
-  background:transparent;
-  color:var(--muted);
-  cursor:pointer;
-}
-
-.dash-chart-filter-clear:hover {
-  color:var(--accent);
-  border-color:rgba(var(--accent-rgb),0.4);
-}
-
-.dash-timeline-label {
-  font-size:9px;
-  color:var(--muted);
-  white-space:nowrap;
+  flex:1 1 0;
+  min-width:46px;
+  padding:8px 4px;
   text-align:center;
+  font-size:11px;
+  font-weight:600;
+  border:none;
+  border-right:1px solid var(--border);
+  border-radius:0;
+  background:var(--panel-bg);
+  color:var(--muted);
+  cursor:pointer;
+  transition: background 0.15s, color 0.15s;
+
+  &:last-child { border-right:none; }
+  &:hover { background:rgba(var(--accent-rgb),0.1); color:var(--text); }
+
+  &.selected {
+    background:var(--accent);
+    color:#fff;
+    font-weight:700;
+  }
 }
+

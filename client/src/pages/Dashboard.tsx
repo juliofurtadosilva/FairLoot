@@ -73,7 +73,19 @@ export default function Dashboard() {
   })
   const [carouselIndex, setCarouselIndex] = useState(0)
   const [pageSlide, setPageSlide] = useState(0)
-  const [lootByPlayer, setLootByPlayer] = useState<{ name: string; count: number; manualCount: number; className?: string }[]>([])
+  const [lootByPlayer, setLootByPlayer] = useState<{ name: string; count: number; manualCount: number; transmogCount: number; className?: string }[]>([])
+  // multiple views can be shown at once (each renders its own bar segment) instead of switching between them
+  const [chartViews, setChartViews] = useState<Set<'score' | 'transmog' | 'noscore'>>(new Set(['score']))
+  const [chartSortDir, setChartSortDir] = useState<'asc' | 'desc'>('desc')
+  const toggleChartView = (v: 'score' | 'transmog' | 'noscore') => {
+    setChartViews(prev => {
+      // keep at least one view active — an empty chart would just be confusing
+      if (prev.has(v) && prev.size === 1) return prev
+      const next = new Set(prev)
+      if (next.has(v)) next.delete(v); else next.add(v)
+      return next
+    })
+  }
   const [timeline, setTimeline] = useState<{ date: string; count: number }[]>([])
   const [seasonStart, setSeasonStart] = useState<string | null>(null)
   const [seasonDrops, setSeasonDrops] = useState<any[]>([])
@@ -211,19 +223,23 @@ export default function Dashboard() {
         // filter to current season
         const current = drops.filter((d: any) => d.assignedTo && !d.isReverted && new Date(d.createdAt).getTime() > seasonCutoff)
 
-        // count per player — scored items and manually-assigned (no-score) items tracked separately
+        // count per player — scored, transmog, and manually-assigned (no-score) items tracked separately
         const countMap: Record<string, number> = {}
         const manualCountMap: Record<string, number> = {}
+        const transmogCountMap: Record<string, number> = {}
         const classMap: Record<string, string> = {}
         for (const c of allChars) {
           if (c.name) {
             countMap[c.name] = 0
             manualCountMap[c.name] = 0
+            transmogCountMap[c.name] = 0
             if (c.class) classMap[c.name] = c.class
           }
         }
         for (const d of current) {
-          if (d.isManualAssignment) {
+          if (d.isTransmogPick) {
+            transmogCountMap[d.assignedTo] = (transmogCountMap[d.assignedTo] || 0) + 1
+          } else if (d.isManualAssignment) {
             manualCountMap[d.assignedTo] = (manualCountMap[d.assignedTo] || 0) + 1
           } else {
             countMap[d.assignedTo] = (countMap[d.assignedTo] || 0) + 1
@@ -232,8 +248,8 @@ export default function Dashboard() {
         }
 
         const sorted = Object.entries(countMap)
-          .map(([name, count]) => ({ name, count, manualCount: manualCountMap[name] || 0, className: classMap[name] }))
-          .sort((a, b) => (b.count + b.manualCount) - (a.count + a.manualCount) || a.name.localeCompare(b.name))
+          .map(([name, count]) => ({ name, count, manualCount: manualCountMap[name] || 0, transmogCount: transmogCountMap[name] || 0, className: classMap[name] }))
+          .sort((a, b) => (b.count + b.manualCount + b.transmogCount) - (a.count + a.manualCount + a.transmogCount) || a.name.localeCompare(b.name))
         setLootByPlayer(sorted)
 
         // timeline: group by date
@@ -299,24 +315,72 @@ export default function Dashboard() {
     const dayDrops = seasonDrops.filter((d: any) => new Date(d.createdAt).toLocaleDateString() === selectedDate)
     const countMap: Record<string, number> = {}
     const manualCountMap: Record<string, number> = {}
+    const transmogCountMap: Record<string, number> = {}
     const classMap: Record<string, string> = {}
     for (const c of seasonChars) { if (c.name && c.class) classMap[c.name] = c.class }
     for (const d of dayDrops) {
-      if (d.isManualAssignment) manualCountMap[d.assignedTo] = (manualCountMap[d.assignedTo] || 0) + 1
+      if (d.isTransmogPick) transmogCountMap[d.assignedTo] = (transmogCountMap[d.assignedTo] || 0) + 1
+      else if (d.isManualAssignment) manualCountMap[d.assignedTo] = (manualCountMap[d.assignedTo] || 0) + 1
       else countMap[d.assignedTo] = (countMap[d.assignedTo] || 0) + 1
       if (!classMap[d.assignedTo] && d.className) classMap[d.assignedTo] = d.className
     }
-    const names = new Set([...Object.keys(countMap), ...Object.keys(manualCountMap)])
+    const names = new Set([...Object.keys(countMap), ...Object.keys(manualCountMap), ...Object.keys(transmogCountMap)])
     return Array.from(names)
-      .map(name => ({ name, count: countMap[name] || 0, manualCount: manualCountMap[name] || 0, className: classMap[name] }))
-      .sort((a, b) => (b.count + b.manualCount) - (a.count + a.manualCount) || a.name.localeCompare(b.name))
+      .map(name => ({ name, count: countMap[name] || 0, manualCount: manualCountMap[name] || 0, transmogCount: transmogCountMap[name] || 0, className: classMap[name] }))
+      .sort((a, b) => (b.count + b.manualCount + b.transmogCount) - (a.count + a.manualCount + a.transmogCount) || a.name.localeCompare(b.name))
   }, [selectedDate, seasonDrops, seasonChars, lootByPlayer])
 
-  const maxLoot = useMemo(() => Math.max(...displayedPlayers.map(p => p.count + p.manualCount), 1), [displayedPlayers])
-  const hasManualAssignments = useMemo(() => displayedPlayers.some(p => p.manualCount > 0), [displayedPlayers])
+  type ChartPlayer = { name: string; count: number; manualCount: number; transmogCount: number; className?: string }
+  const CHART_VIEW_ORDER: ('score' | 'transmog' | 'noscore')[] = ['score', 'transmog', 'noscore']
+  const metricFor = (p: ChartPlayer, v: 'score' | 'transmog' | 'noscore') =>
+    v === 'transmog' ? p.transmogCount : v === 'noscore' ? p.manualCount : p.count
+  const chartSum = (p: ChartPlayer) => CHART_VIEW_ORDER.reduce((acc, v) => acc + (chartViews.has(v) ? metricFor(p, v) : 0), 0)
+  const chartRows = useMemo(() => {
+    const dir = chartSortDir === 'asc' ? 1 : -1
+    return displayedPlayers
+      .filter(p => chartSum(p) > 0)
+      .sort((a, b) => dir * (chartSum(a) - chartSum(b)) || a.name.localeCompare(b.name))
+  }, [displayedPlayers, chartViews, chartSortDir])
+  const maxLoot = useMemo(() => Math.max(...chartRows.map(p => chartSum(p)), 1), [chartRows, chartViews])
+
+  // reserve the tallest height the row list has ever needed — filtering to a single day (or to a
+  // view with fewer participants) shouldn't collapse this area and yank the timeline up with it.
+  const chartListRef = useRef<HTMLDivElement>(null)
+  const [chartMinHeight, setChartMinHeight] = useState(0)
+  useEffect(() => {
+    const el = chartListRef.current
+    if (!el) return
+    setChartMinHeight(h => Math.max(h, el.scrollHeight))
+  }, [chartRows])
 
   const slideCount = 3
   const goSlide = (i: number) => setPageSlide((i + slideCount) % slideCount)
+
+  // draggable tab order — persisted per browser so it's independent of the fixed slide content order
+  const [tabOrder, setTabOrder] = useState<number[]>(() => {
+    try {
+      const saved = localStorage.getItem('dashTabOrder')
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (Array.isArray(parsed) && parsed.length === slideCount && new Set(parsed).size === slideCount && parsed.every((n: any) => Number.isInteger(n) && n >= 0 && n < slideCount)) {
+          return parsed
+        }
+      }
+    } catch {}
+    return [0, 1, 2]
+  })
+  const [draggedTabPos, setDraggedTabPos] = useState<number | null>(null)
+  const [dragOverTabPos, setDragOverTabPos] = useState<number | null>(null)
+  const reorderTab = (fromPos: number, toPos: number) => {
+    if (fromPos === toPos) return
+    setTabOrder(prev => {
+      const next = [...prev]
+      const [moved] = next.splice(fromPos, 1)
+      next.splice(toPos, 0, moved)
+      try { localStorage.setItem('dashTabOrder', JSON.stringify(next)) } catch {}
+      return next
+    })
+  }
 
   // switching to a shorter slide shouldn't leave the view scrolled past its top (e.g. after
   // scrolling down to reach the nav dots on a tall slide)
@@ -345,93 +409,120 @@ export default function Dashboard() {
     <div className="tab-content">
       <div className="tab-card dash-card">
         <div className="dash-page-nav">
-          {[t('dash.navDashboard'), t('dash.outdatedTitle'), t('dash.featTitle')].map((label, i) => (
-            <button key={i} className={`dash-page-tab ${i === pageSlide ? 'active' : ''}`} onClick={() => goSlide(i)}>
-              {label}
-            </button>
-          ))}
+          {tabOrder.map((slideIdx, pos) => {
+            const label = [t('dash.navDashboard'), t('dash.outdatedTitle'), t('dash.navHome')][slideIdx]
+            return (
+              <button
+                key={slideIdx}
+                draggable
+                onDragStart={() => setDraggedTabPos(pos)}
+                onDragOver={e => { e.preventDefault(); if (dragOverTabPos !== pos) setDragOverTabPos(pos) }}
+                onDragLeave={() => setDragOverTabPos(prev => prev === pos ? null : prev)}
+                onDrop={e => {
+                  e.preventDefault()
+                  if (draggedTabPos !== null) reorderTab(draggedTabPos, pos)
+                  setDraggedTabPos(null)
+                  setDragOverTabPos(null)
+                }}
+                onDragEnd={() => { setDraggedTabPos(null); setDragOverTabPos(null) }}
+                className={`dash-page-tab ${slideIdx === pageSlide ? 'active' : ''} ${draggedTabPos === pos ? 'dragging' : ''} ${dragOverTabPos === pos && draggedTabPos !== pos ? 'drag-over' : ''}`}
+                onClick={() => goSlide(slideIdx)}
+                title={t('dash.navDragHint')}
+              >
+                {label}
+              </button>
+            )
+          })}
         </div>
 
         <div className="dash-carousel" style={{ height: trackHeight }}>
-          <div className="dash-carousel-track" style={{ transform: `translateX(-${pageSlide * 100}%)` }}>
+          <div className="dash-carousel-track" style={{ transform: `translateX(-${tabOrder.indexOf(pageSlide) * 100}%)` }}>
 
           {/* ── Slide 1: welcome + loot chart ── */}
-          <div className="dash-carousel-slide" ref={slide1Ref}>
-        <h2 className="dash-welcome">{t('dash.welcome')}</h2>
-        <p className="dash-subtitle">{t('dash.subtitle')}</p>
-
+          <div className="dash-carousel-slide" ref={slide1Ref} style={{ order: tabOrder.indexOf(0) }}>
         {/* Loot distribution chart */}
         {lootByPlayer.length > 0 && (
           <div className="dash-chart-section">
-            <h3 className="dash-chart-title">{t('dash.chartTitle')}</h3>
-            {seasonStart && (
-              <div className="dash-chart-since">{t('dash.chartSince')} {seasonStart}</div>
-            )}
-            {selectedDate && (
-              <div className="dash-chart-filter">
-                {t('dash.chartFilteredBy')} <strong>{selectedDate}</strong>
-                <button type="button" className="dash-chart-filter-clear" onClick={() => setSelectedDate(null)}>{t('dash.chartFilterClear')}</button>
+            <div className="dash-chart-header">
+              <div className="dash-chart-header-text">
+                <h3 className="dash-chart-title">{t('dash.chartTitle')}</h3>
+                {seasonStart && (
+                  <span className="dash-chart-since">{t('dash.chartSince')} {seasonStart}</span>
+                )}
+              </div>
+              <div className="dash-chart-view-toggle">
+                <button type="button" className={`dash-chart-view-btn ${chartViews.has('score') ? 'active' : ''}`} onClick={() => toggleChartView('score')}>{t('dash.chartViewScore')}</button>
+                <button type="button" className={`dash-chart-view-btn dash-chart-view-btn--transmog ${chartViews.has('transmog') ? 'active' : ''}`} title={t('dash.chartViewCaptionTransmog')} onClick={() => toggleChartView('transmog')}>{t('dash.chartViewTransmog')}</button>
+                <button type="button" className={`dash-chart-view-btn dash-chart-view-btn--noscore ${chartViews.has('noscore') ? 'active' : ''}`} title={t('dash.chartNoScoreLegend')} onClick={() => toggleChartView('noscore')}>{t('dash.chartViewNoScore')}</button>
+                <button
+                  type="button"
+                  className="dash-chart-sort-btn"
+                  title={chartSortDir === 'asc' ? t('dash.chartSortAsc') : t('dash.chartSortDesc')}
+                  onClick={() => setChartSortDir(d => d === 'asc' ? 'desc' : 'asc')}
+                >{chartSortDir === 'asc' ? '↑' : '↓'}</button>
+              </div>
+            </div>
+            {/* Timeline — clicking the already-active day clears the filter, shown via its own "✕" prefix */}
+            {timeline.length > 1 && (
+              <div className="dash-timeline">
+                <div className="dash-timeline-track">
+                  {timeline.map((tp, i) => {
+                    const isSelected = selectedDate === tp.date
+                    return (
+                      <button
+                        key={i}
+                        type="button"
+                        className={`dash-timeline-point${isSelected ? ' selected' : ''}`}
+                        title={isSelected ? t('dash.chartFilterClear') : `${tp.date}: ${tp.count}`}
+                        onClick={() => setSelectedDate(isSelected ? null : tp.date)}
+                      >
+                        {isSelected && '✕ '}{tp.date.replace(/\/\d{4}$/, '').replace(/\/20\d{2}$/, '')}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
             )}
-            {hasManualAssignments && (
-              <div className="dash-chart-legend">{t('dash.chartNoScoreLegend')}</div>
-            )}
-            <div className="dash-chart">
-              {displayedPlayers.map((p, i) => {
-                const barColor = getClassColor(p.className, theme)
+            <div className="dash-chart" ref={chartListRef} style={{ minHeight: chartMinHeight || undefined }}>
+              {chartRows.length === 0 && (
+                <div className="dash-chart-empty">{t('dash.chartNoData')}</div>
+              )}
+              {chartRows.map((p, i) => {
+                const segments = CHART_VIEW_ORDER
+                  .filter(v => chartViews.has(v))
+                  .map(v => ({
+                    view: v,
+                    value: metricFor(p, v),
+                    color: v === 'transmog' ? 'var(--color-transmog)' : v === 'noscore' ? 'var(--color-noscore)' : getClassColor(p.className, theme),
+                  }))
+                const label = segments.map(s => s.value).filter(v => v > 0).join(' + ')
                 return (
                   <div key={i} className="dash-chart-row">
                     <div className="dash-chart-name" title={p.name}>{p.name}</div>
                     <div className="dash-chart-bar-track">
-                      <div
-                        className="dash-chart-bar"
-                        style={{
-                          width: `${(p.count / maxLoot) * 100}%`,
-                          animationDelay: `${i * 50}ms`,
-                          background: barColor,
-                        }}
-                      />
-                      {p.manualCount > 0 && (
+                      {segments.map(s => s.value > 0 && (
                         <div
-                          className="dash-chart-bar dash-chart-bar--noscore"
-                          title={t('dash.chartNoScoreLegend')}
+                          key={s.view}
+                          className="dash-chart-bar"
                           style={{
-                            width: `${(p.manualCount / maxLoot) * 100}%`,
+                            width: `${(s.value / maxLoot) * 100}%`,
                             animationDelay: `${i * 50}ms`,
+                            background: s.color,
                           }}
                         />
-                      )}
+                      ))}
                     </div>
-                    <div className="dash-chart-value">{p.count}{p.manualCount > 0 ? ` +${p.manualCount}` : ''}</div>
+                    <div className="dash-chart-value">{label}</div>
                   </div>
                 )
               })}
             </div>
-            {/* Timeline */}
-            {timeline.length > 1 && (
-              <div className="dash-timeline">
-                <div className="dash-timeline-title">{t('dash.chartTimeline')}</div>
-                <div className="dash-timeline-track">
-                  {timeline.map((tp, i) => (
-                    <div
-                      key={i}
-                      className={`dash-timeline-point${selectedDate === tp.date ? ' selected' : ''}`}
-                      title={`${tp.date}: ${tp.count}`}
-                      onClick={() => setSelectedDate(selectedDate === tp.date ? null : tp.date)}
-                    >
-                      <div className="dash-timeline-bar" style={{ height: `${Math.max(8, (tp.count / Math.max(...timeline.map(x => x.count))) * 40)}px` }} />
-                      <div className="dash-timeline-label">{tp.date.replace(/\/\d{4}$/, '').replace(/\/20\d{2}$/, '')}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         )}
           </div>
 
           {/* ── Slide 2: outdated SimC ── */}
-          <div className="dash-carousel-slide" ref={slide2Ref}>
+          <div className="dash-carousel-slide" ref={slide2Ref} style={{ order: tabOrder.indexOf(1) }}>
         {/* Outdated SimC Warnings — first thing after welcome */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -511,7 +602,10 @@ export default function Dashboard() {
           </div>
 
           {/* ── Slide 3: features + changelog ── */}
-          <div className="dash-carousel-slide" ref={slide3Ref}>
+          <div className="dash-carousel-slide" ref={slide3Ref} style={{ order: tabOrder.indexOf(2) }}>
+        <h2 className="dash-welcome">{t('dash.welcome')}</h2>
+        <p className="dash-subtitle">{t('dash.subtitle')}</p>
+
         {/* v1 Features */}
         <div className="dash-features-section">
           <h3 className="dash-features-title"><span aria-hidden="true">✨ </span>{t('dash.featTitle')}</h3>

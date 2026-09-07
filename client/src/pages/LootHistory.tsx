@@ -24,6 +24,7 @@ type LootDrop = {
   revertedAt?: string
   isManualAssignment?: boolean
   noScore?: boolean
+  isTransmogPick?: boolean
 }
 
 type Candidate = {
@@ -343,10 +344,9 @@ export default function LootHistory() {
     if (!redistributeInfo) return
     const usingManual = !!redistManualChar
     if (!usingManual && !redistSelected) return
-    // manual + transmog mode: drop the assignee, record as a plain transmog (empty assignedTo)
-    const assignedTo = usingManual
-      ? (redistManualMode === 'transmog' ? '' : redistManualChar)
-      : redistSelected
+    const isTransmogPick = usingManual && redistManualMode === 'transmog'
+    // manual + transmog mode keeps the assignee — who received it for transmog is still worth recording
+    const assignedTo = usingManual ? redistManualChar : redistSelected
     const alloc = {
       itemId: redistributeInfo.itemId,
       itemName: redistributeInfo.itemName,
@@ -356,6 +356,7 @@ export default function LootHistory() {
       isSingleUpgrade: usingManual ? false : redistSingleUpgrade,
       // 'score' mode counts like a normal pick; 'noscore'/'transmog' never score.
       isManualAssignment: usingManual && redistManualMode !== 'score',
+      isTransmogPick,
     }
     try {
       if (isDemoMode()) {
@@ -366,9 +367,10 @@ export default function LootHistory() {
           boss: alloc.boss,
           difficulty: alloc.difficulty,
           // award depends on difficulty (normal=0.5, heroic=1.0, mythic=1.5); transmog/manual-no-score never score
-          awardValue: (!alloc.assignedTo || alloc.isSingleUpgrade || alloc.isManualAssignment) ? 0 : (alloc.difficulty === 'normal' ? 0.5 : alloc.difficulty === 'mythic' ? 1.5 : 1.0),
+          awardValue: (isTransmogPick || !alloc.assignedTo || alloc.isSingleUpgrade || alloc.isManualAssignment) ? 0 : (alloc.difficulty === 'normal' ? 0.5 : alloc.difficulty === 'mythic' ? 1.5 : 1.0),
           note: '',
           isManualAssignment: alloc.isManualAssignment,
+          isTransmogPick,
           createdAt: new Date().toISOString(),
         }
         addDemoLootHistory([drop])
@@ -599,12 +601,14 @@ export default function LootHistory() {
                             <div className="lh-boss-items">
                               {bossItems.map(d => {
                         const reverted = !!d.isReverted
-                        const isTransmog = !d.assignedTo
+                        const isTransmog = !!d.isTransmogPick || !d.assignedTo
                         const icon = getIcon(d)
                         const tooltip = [
                           `${d.itemName}`,
                           `${t('loot.difficulty')}: ${d.difficulty}`,
-                          d.assignedTo ? `${t('history.to')} ${d.assignedTo}` : t('history.transmog'),
+                          d.assignedTo
+                            ? (isTransmog ? `${t('history.to')} ${d.assignedTo} (${t('history.transmog')})` : `${t('history.to')} ${d.assignedTo}`)
+                            : t('history.transmog'),
                           d.isManualAssignment ? t('history.manualAssignment') : (d.noScore ? t('history.noScoreAssignment') : (d.awardValue ? `${t('history.value')} +${Number(d.awardValue).toFixed(1)} pts` : null)),
                           d.note ? `${t('history.note')} ${d.note}` : null,
                           `${t('history.at')} ${formatDate(d.createdAt)}`,
@@ -641,12 +645,14 @@ export default function LootHistory() {
                             </div>
 
                             {/* Assignment info */}
-                            {isTransmog ? (
+                            {isTransmog && !d.assignedTo ? (
                               <div className="lh-transmog">{t('history.transmog')}</div>
                             ) : (
                               <div className="lh-assigned">
                                 <span className="lh-assigned-name">{d.assignedTo}</span>
-                                {d.isManualAssignment ? (
+                                {isTransmog ? (
+                                  <span className="lh-assigned-manual">{t('history.transmog')}</span>
+                                ) : d.isManualAssignment ? (
                                   <span className="lh-assigned-manual">{t('history.manualAssignment')}</span>
                                 ) : d.noScore ? (
                                   <span className="lh-assigned-manual">{t('history.noScoreAssignment')}</span>

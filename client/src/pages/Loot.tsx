@@ -860,11 +860,12 @@ export default function Loot() {
     const allocations = allocItems.map((it, idx) => {
       const isManual = manualAssignItems.has(idx)
       const mode = manualScoreMode[idx] || 'noscore'
-      // manual + transmog mode: drop the assignee, record as a plain transmog (empty assignedTo),
-      // same as the algorithm's own transmog detection.
+      const isTransmogPick = isManual ? mode === 'transmog' : getTransmogStatus(idx).isTransmog
+      // manual + transmog mode keeps the assignee — who received it for transmog is still worth
+      // recording, unlike the algorithm's own transmog detection (no candidate wanted it at all).
       const assignedTo = isManual
-        ? (mode === 'transmog' ? '' : (assignments[idx] || ''))
-        : (getTransmogStatus(idx).isTransmog ? '' : (assignments[idx] || ''))
+        ? (assignments[idx] || '')
+        : (isTransmogPick ? '' : (assignments[idx] || ''))
       return {
         itemId: it.itemId,
         itemName: it.itemName,
@@ -875,6 +876,7 @@ export default function Loot() {
         isSingleUpgrade: !!suggestionMeta[idx]?.singleUpgradeOnly,
         // 'score' mode counts like a normal pick (no manual flag → backend awards it); 'noscore'/'transmog' never score.
         isManualAssignment: isManual && mode !== 'score',
+        isTransmogPick,
         // quick no-score toggle on an otherwise-normal pick (not manual mode)
         noScore: !isManual && noScoreItems.has(idx),
       }
@@ -892,6 +894,7 @@ export default function Loot() {
           note: a.note || '',
           isManualAssignment: a.isManualAssignment,
           noScore: a.noScore,
+          isTransmogPick: a.isTransmogPick,
           createdAt: new Date().toISOString(),
         }))
         addDemoLootHistory(drops)
@@ -1247,18 +1250,20 @@ export default function Loot() {
                           }
                         }}
                       >D</button>
-                      <button
-                        className={"no-score-toggle" + (isNoScore ? ' off' : ' on')}
-                        title={isNoScore ? t('loot.scoreOff') : t('loot.scoreOn')}
-                        onClick={e => {
-                          e.stopPropagation()
-                          setNoScoreItems(prev => {
-                            const next = new Set(prev)
-                            if (next.has(idx)) next.delete(idx); else next.add(idx)
-                            return next
-                          })
-                        }}
-                      >S</button>
+                      {!isManual && (
+                        <button
+                          className={"no-score-toggle" + (isNoScore ? ' off' : ' on')}
+                          title={isNoScore ? t('loot.scoreOff') : t('loot.scoreOn')}
+                          onClick={e => {
+                            e.stopPropagation()
+                            setNoScoreItems(prev => {
+                              const next = new Set(prev)
+                              if (next.has(idx)) next.delete(idx); else next.add(idx)
+                              return next
+                            })
+                          }}
+                        >S</button>
+                      )}
                     </div>
                     {isManual && (
                       <div style={{ textAlign: 'center', padding: '4px 0' }}>
@@ -1269,7 +1274,7 @@ export default function Loot() {
                         ) : (
                           <span className="badge badge-manual" style={{ color: 'var(--color-noscore)', border: '1px solid var(--color-noscore)', fontWeight: 700, fontSize: 10, letterSpacing: 1 }}>{t('loot.manualAssignBadge')}</span>
                         )}
-                        {assignments[idx] && manualMode !== 'transmog' && <div style={{ marginTop: 4, fontSize: 13, fontWeight: 600 }}>{assignments[idx]}</div>}
+                        {assignments[idx] && <div style={{ marginTop: 4, fontSize: 13, fontWeight: 600 }}>{assignments[idx]}</div>}
                       </div>
                     )}
                     {!isManual && isTransmog && (

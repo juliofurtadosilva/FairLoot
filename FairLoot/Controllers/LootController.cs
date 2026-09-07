@@ -297,7 +297,7 @@ namespace FairLoot.Controllers
                 // consistent award: 1.0 per item received (score = total items received)
                 // transmog items (empty AssignedTo) get award 0
                 // single upgrade items (only 1 candidate wanted) get award 0 (no competition)
-                var isTransmog = string.IsNullOrEmpty(alloc.AssignedTo);
+                var isTransmog = alloc.IsTransmogPick || string.IsNullOrEmpty(alloc.AssignedTo);
                 var noScore = alloc.IsManualAssignment || alloc.NoScore;
                 // award depends on difficulty: normal=0.5, heroic=1.0, mythic=1.5
                 double award = 0;
@@ -318,7 +318,8 @@ namespace FairLoot.Controllers
                     AwardValue = award,
                     Note = alloc.Note,
                     IsManualAssignment = alloc.IsManualAssignment,
-                    NoScore = alloc.NoScore
+                    NoScore = alloc.NoScore,
+                    IsTransmogPick = isTransmog
                 };
 
                 drops.Add(drop);
@@ -418,11 +419,13 @@ namespace FairLoot.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> ResolveIcons([FromBody] List<int> itemIds)
         {
+            // resolve all icons concurrently — GetWowheadIconAsync already has its own cache and
+            // outbound-request semaphore, so fetching one at a time here only made the wait longer
+            // for no benefit (see WowAuditService's own parallel usage of the same method).
+            var ids = itemIds.Distinct().Take(100).ToList();
+            var icons = await Task.WhenAll(ids.Select(id => _wow.GetWowheadIconAsync(id)));
             var result = new Dictionary<int, string?>();
-            foreach (var id in itemIds.Distinct().Take(100))
-            {
-                result[id] = await _wow.GetWowheadIconAsync(id);
-            }
+            for (var i = 0; i < ids.Count; i++) result[ids[i]] = icons[i];
             return Ok(result);
         }
 

@@ -96,5 +96,8 @@ namespace FairLoot.DTOs
         public bool IsManualAssignment { get; set; }
         // quick "give without scoring" toggle on an otherwise-normal (non-manual) suggestion pick.
         public bool NoScore { get; set; }
+        // true when this pick is a transmog — independent of AssignedTo, so a manual transmog pick
+        // can still record who it went to instead of leaving AssignedTo blank.
+        public bool IsTransmogPick { get; set; }
     }
 }
