@@ -12,6 +12,7 @@ export default function Members() {
   const [pending, setPending] = useState<any[]>([])
   const [error, setError] = useState<string | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [initialLoading, setInitialLoading] = useState(true)
   const [classMap, setClassMap] = useState<Record<string, string>>({})
   const { t, theme, showConfirm } = useApp()
@@ -56,6 +57,7 @@ export default function Members() {
       try {
         const me = await api.get('/api/auth/me')
         setIsAdmin(me.data?.role === 'Admin')
+        setCurrentUserId(me.data?.id || null)
       } catch {}
       await Promise.all([fetchMembers(), fetchPending()])
       try {
@@ -93,6 +95,18 @@ export default function Members() {
       await Promise.all([fetchMembers(), fetchPending()])
     } catch (err: any) {
       setError(err?.response?.data || t('members.errorRemove'))
+    }
+  }
+
+  const changeRole = async (id: string, newRole: 'Admin' | 'Reader') => {
+    if (isDemoMode()) return
+    const confirmMsg = newRole === 'Admin' ? t('members.confirmPromote') : t('members.confirmDemote')
+    if (!(await showConfirm(confirmMsg, true))) return
+    try {
+      await api.put(`/api/guildmember/${id}`, { role: newRole })
+      await fetchMembers()
+    } catch (err: any) {
+      setError(err?.response?.data || t('members.errorRole'))
     }
   }
 
@@ -145,12 +159,23 @@ export default function Members() {
                   )}
                   <div className="member-role" style={{ color: roleColor(m.role) }}>{m.role}</div>
                 </div>
-                {isAdmin && m.role !== 'Admin' && (
-                  <button
-                    onClick={() => removeMember(m.id)}
-                    title={t('members.remove')}
-                    className="member-remove-btn"
-                  >✕</button>
+                {isAdmin && (
+                  <div className="member-actions">
+                    {m.id !== currentUserId && (
+                      m.role === 'Admin' ? (
+                        <button onClick={() => changeRole(m.id, 'Reader')} className="member-role-btn">{t('members.demote')}</button>
+                      ) : (
+                        <button onClick={() => changeRole(m.id, 'Admin')} className="member-role-btn">{t('members.promote')}</button>
+                      )
+                    )}
+                    {m.role !== 'Admin' && (
+                      <button
+                        onClick={() => removeMember(m.id)}
+                        title={t('members.remove')}
+                        className="member-remove-btn"
+                      >✕</button>
+                    )}
+                  </div>
                 )}
               </div>
               )

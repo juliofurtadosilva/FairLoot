@@ -102,6 +102,11 @@ const translations = {
   'members.errorFetch': { pt: 'Erro ao buscar membros', en: 'Error fetching members' },
   'members.errorApprove': { pt: 'Erro ao aprovar', en: 'Error approving' },
   'members.errorRemove': { pt: 'Erro ao remover', en: 'Error removing' },
+  'members.promote': { pt: 'Tornar Admin', en: 'Make Admin' },
+  'members.demote': { pt: 'Tornar Reader', en: 'Make Reader' },
+  'members.confirmPromote': { pt: 'Tornar este membro Admin?', en: 'Make this member an Admin?' },
+  'members.confirmDemote': { pt: 'Tornar este membro Reader?', en: 'Make this member a Reader?' },
+  'members.errorRole': { pt: 'Erro ao mudar cargo', en: 'Error changing role' },
   'members.newPendingOne': { pt: 'Novo pedido de acesso pendente', en: 'New pending access request' },
   'members.newPendingMany': { pt: 'Novos pedidos de acesso pendentes', en: 'New pending access requests' },
 
