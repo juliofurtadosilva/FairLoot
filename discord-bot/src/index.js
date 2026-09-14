@@ -31,11 +31,17 @@ client.once(Events.ClientReady, c => {
 
 // Posts the "outdated SimC" digest once a day, at whatever time+timezone each guild configured in
 // the Admin panel (captured from that admin's own browser — a US guild's 9pm means their 9pm, not
-// wherever the bot process happens to run), to every Discord server the bot is actually in. Checked
-// once a minute — that tick only compares small in-memory numbers, it's not what would be expensive.
-// The one thing that actually costs anything (fetching wowaudit's wishlist) only runs the moment
-// we're sure it's time to post, via a separate light "digest-schedule" endpoint (DB-only, no
-// external API call).
+// wherever the bot process happens to run), to every Discord server the bot is actually in.
+//
+// Checked every 10 minutes rather than every minute — this bot runs 24/7 on its own VM (unlike the
+// Render backend, it never sleeps), and each check hits the FairLoot database via digest-schedule.
+// A per-minute check kept that Neon database's compute endpoint continuously active, which meant it
+// never auto-suspended — Neon bills CU-hours by active compute *time*, not query count, so this alone
+// burned through ~6 CU-hrs/day (nearly the entire free-tier monthly quota in ~2 weeks) even though no
+// guild had anything to post most of the time. A 10-minute gap between checks is long enough for the
+// database to actually suspend in between, and a digest firing up to 10 minutes after its scheduled
+// minute is a non-issue for a once-a-day reminder.
+const CHECK_INTERVAL_MS = 10 * 60_000;
 const lastDigestRunDate = new Map(); // guildId -> 'YYYY-MM-DD' in that guild's own timezone, guards against firing twice in a day
 
 const WEEKDAY_INDEX = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
@@ -53,7 +59,7 @@ function zonedNow(timeZone) {
 }
 
 function startDailyDigestScheduler() {
-  setInterval(checkAllGuildsForDigest, 60_000);
+  setInterval(checkAllGuildsForDigest, CHECK_INTERVAL_MS);
 }
 
 async function checkAllGuildsForDigest() {
@@ -65,7 +71,10 @@ async function checkAllGuildsForDigest() {
       const { date, time, weekday } = zonedNow(schedule.timezone || 'America/Sao_Paulo');
       const allowedDays = (schedule.daysOfWeek || '0,1,2,3,4,5,6').split(',').map(Number);
       const isAllowedDay = allowedDays.includes(weekday);
-      const isScheduledTime = isAllowedDay && schedule.time === time && lastDigestRunDate.get(guild.id) !== date;
+      // ">=" (not "===") — checks land on a 10-minute grid now, not every minute, so they'd otherwise
+      // very likely skip straight past the exact configured minute and never fire at all that day.
+      // "HH:MM" zero-padded strings compare correctly in chronological order.
+      const isScheduledTime = isAllowedDay && schedule.time <= time && lastDigestRunDate.get(guild.id) !== date;
       // a manual "send now" always fires regardless of which days are configured — that's the point of it
       if (!schedule.manualTrigger && !isScheduledTime) continue;
 
