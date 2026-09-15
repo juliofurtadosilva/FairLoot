@@ -33,15 +33,18 @@ client.once(Events.ClientReady, c => {
 // the Admin panel (captured from that admin's own browser — a US guild's 9pm means their 9pm, not
 // wherever the bot process happens to run), to every Discord server the bot is actually in.
 //
-// Checked every 10 minutes rather than every minute — this bot runs 24/7 on its own VM (unlike the
-// Render backend, it never sleeps), and each check hits the FairLoot database via digest-schedule.
-// A per-minute check kept that Neon database's compute endpoint continuously active, which meant it
-// never auto-suspended — Neon bills CU-hours by active compute *time*, not query count, so this alone
-// burned through ~6 CU-hrs/day (nearly the entire free-tier monthly quota in ~2 weeks) even though no
-// guild had anything to post most of the time. A 10-minute gap between checks is long enough for the
-// database to actually suspend in between, and a digest firing up to 10 minutes after its scheduled
-// minute is a non-issue for a once-a-day reminder.
-const CHECK_INTERVAL_MS = 10 * 60_000;
+// Checked every 20 minutes rather than every minute — this bot runs 24/7 on its own VM (unlike the
+// Render backend, it never sleeps), and each check is an HTTP call to the FairLoot backend that hits
+// the database via digest-schedule. A per-minute check kept the Render backend's own inactivity timer
+// (it sleeps after ~15 minutes with no requests) from ever elapsing, which in turn kept its internal
+// background jobs (WowAuditSyncService, syncing every guild's roster every 30 minutes) running
+// nonstop — and kept Neon's database compute continuously active. Neon bills CU-hours by active
+// compute *time*, not query count, so all that idle-but-always-on time alone burned through ~6
+// CU-hrs/day (nearly the whole free-tier monthly quota in ~2 weeks). 20 minutes is comfortably past
+// Render's 15-minute sleep threshold, so both the backend and the database actually get to suspend
+// between checks — a digest firing up to 20 minutes after its scheduled minute is a non-issue for a
+// once-a-day reminder.
+const CHECK_INTERVAL_MS = 20 * 60_000;
 const lastDigestRunDate = new Map(); // guildId -> 'YYYY-MM-DD' in that guild's own timezone, guards against firing twice in a day
 
 const WEEKDAY_INDEX = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
